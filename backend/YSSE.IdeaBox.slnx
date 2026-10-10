@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="src/YSSE.IdeaBox.Domain/YSSE.IdeaBox.Domain.csproj" />
+  <Project Path="src/YSSE.IdeaBox.Application/YSSE.IdeaBox.Application.csproj" />
+  <Project Path="src/YSSE.IdeaBox.Infrastructure/YSSE.IdeaBox.Infrastructure.csproj" />
+  <Project Path="src/YSSE.IdeaBox.Api/YSSE.IdeaBox.Api.csproj" />
+  <Project Path="tests/YSSE.IdeaBox.Tests/YSSE.IdeaBox.Tests.csproj" />
+</Solution>

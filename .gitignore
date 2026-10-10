@@ -1,0 +1,43 @@
+# ---- .NET build output ----
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+
+# ---- Node / frontend ----
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# ---- Test artifacts ----
+coverage/
+tests/coverage/
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+TestResults/
+
+# ---- Environment / secrets ----
+.env
+.env.*
+!.env.example
+**/appsettings.Development.json
+**/appsettings.*.local.json
+**/storage/
+
+# ---- Logs ----
+*.log
+logs/
+
+# ---- OS / IDE ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
