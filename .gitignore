@@ -35,6 +35,9 @@ TestResults/
 *.log
 logs/
 
+# ---- Local-only markdown docs (agent rules, notes, SRS) ----
+*.md
+
 # ---- OS / IDE ----
 .DS_Store
 Thumbs.db
