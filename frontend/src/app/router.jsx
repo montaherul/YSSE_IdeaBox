@@ -1,9 +1,9 @@
 import { lazy, Suspense } from 'react'
 import { createBrowserRouter, Outlet } from 'react-router-dom'
 import { Providers } from './providers'
-import { PublicLayout } from '@/layouts/PublicLayout'
-import { AppShell } from '@/layouts/AppShell'
-import { ProtectedRoute, AdminRoute } from '@/layouts/ProtectedRoute'
+import { PublicLayout } from '@/components/layout/PublicLayout'
+import { AppShell } from '@/components/layout/AppShell'
+import { ProtectedRoute, AdminRoute } from '@/components/layout/ProtectedRoute'
 import { PageSkeleton } from '@/components/shared/LoadingSkeleton'
 
 // Lazy-loaded routes (rule.md §4: admin dashboard + marketplace load lazily).
