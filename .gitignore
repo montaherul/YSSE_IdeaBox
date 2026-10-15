@@ -38,6 +38,11 @@ logs/
 # ---- Local-only markdown docs (agent rules, notes, SRS) ----
 *.md
 
+# ---- Project documentation (tracked despite the rule above) ----
+!README.md
+!docs/*.md
+!docs/**/*.md
+
 # ---- OS / IDE ----
 .DS_Store
 Thumbs.db
