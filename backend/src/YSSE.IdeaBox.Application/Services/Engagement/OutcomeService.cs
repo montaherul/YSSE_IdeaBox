@@ -32,8 +32,9 @@ public sealed class OutcomeService : IOutcomeService
         _notifications = notifications;
     }
 
-    public async Task<IReadOnlyList<OutcomeDto>> GetForIdeaAsync(int ideaId, CancellationToken ct = default)
+    public async Task<PagedResult<OutcomeDto>> GetForIdeaAsync(int ideaId, int page, int pageSize, CancellationToken ct = default)
     {
+        var (p, s) = Pagination.Normalize(page, pageSize);
         var userId = _current.UserId;
         var q = _unitOfWork.Repository<OpportunityOutcome>().Query().Where(o => o.IdeaId == ideaId);
 
@@ -45,8 +46,12 @@ public sealed class OutcomeService : IOutcomeService
             }
         }
 
-        return await q
+        var total = await q.CountAsync(ct);
+
+        var items = await q
             .OrderByDescending(o => o.CreatedAt)
+            .Skip((p - 1) * s)
+            .Take(s)
             .Select(o => new OutcomeDto
             {
                 Id = o.Id,
@@ -59,6 +64,8 @@ public sealed class OutcomeService : IOutcomeService
                 CreatedAt = o.CreatedAt
             })
             .ToListAsync(ct);
+
+        return PagedResult<OutcomeDto>.Create(items, p, s, total);
     }
 
     public async Task<Result<int>> CreateAsync(OutcomeCreateRequest request, CancellationToken ct = default)
@@ -95,6 +102,63 @@ public sealed class OutcomeService : IOutcomeService
             "Outcome reported", $"An outcome was reported for \"{idea.Title}\".", null, ct: ct);
 
         return Result<int>.Ok(outcome.Id);
+    }
+
+    public async Task<Result> UpdateAsync(int id, OutcomeUpdateRequest request, CancellationToken ct = default)
+    {
+        var userId = _current.RequireUserId();
+        var outcome = await _unitOfWork.Repository<OpportunityOutcome>().Query().FirstOrDefaultAsync(o => o.Id == id, ct);
+        if (outcome is null)
+        {
+            throw new NotFoundException("Outcome not found.");
+        }
+
+        var isReporter = outcome.ReporterUserId == userId;
+        if (!isReporter && !_current.IsAdmin)
+        {
+            throw new ForbiddenException();
+        }
+
+        if (outcome.IsVerified && !_current.IsAdmin)
+        {
+            return Result.Fail("A verified outcome can no longer be edited.");
+        }
+
+        outcome.Kind = request.Kind;
+        outcome.Status = request.Status;
+        outcome.Description = request.Description;
+        outcome.UpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result.Ok();
+    }
+
+    public async Task<Result> DeleteAsync(int id, CancellationToken ct = default)
+    {
+        var userId = _current.RequireUserId();
+        var outcome = await _unitOfWork.Repository<OpportunityOutcome>().Query().FirstOrDefaultAsync(o => o.Id == id, ct);
+        if (outcome is null)
+        {
+            throw new NotFoundException("Outcome not found.");
+        }
+
+        var isReporter = outcome.ReporterUserId == userId;
+        if (!isReporter && !_current.IsAdmin)
+        {
+            throw new ForbiddenException();
+        }
+
+        if (outcome.IsVerified && !_current.IsAdmin)
+        {
+            return Result.Fail("A verified outcome can only be removed by an administrator.");
+        }
+
+        var ideaId = outcome.IdeaId;
+        _unitOfWork.Repository<OpportunityOutcome>().Remove(outcome);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        await _audit.RecordAsync("OutcomeDeleted", nameof(OpportunityOutcome), id.ToString(),
+            null, new { ideaId }, ct);
+        return Result.Ok();
     }
 
     public async Task<Result> VerifyAsync(int id, OutcomeVerifyRequest request, CancellationToken ct = default)

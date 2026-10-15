@@ -1,31 +1,59 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { CheckCircle2, Flag, ListTodo, Send } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { CheckCircle2, Flag, ListTodo, Send, ArrowRightCircle, Pencil, Trash2 } from 'lucide-react'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { usePermission } from '@/hooks/usePermission'
-import { projectUpdateSchema, toErrorMessage } from '@/lib/validation'
+import { useAuth } from '@/hooks/useAuth'
+import { projectUpdateSchema, outcomeSchema, toErrorMessage } from '@/lib/validation'
 import {
   useProject,
   useCreateMilestone,
   useCreateTask,
   useCreateProjectUpdate,
-  useIdeaOutcomes,
   useVerifyOutcome,
-} from '../hooks'
+  useCreateOutcome,
+  useUpdateOutcome,
+  useDeleteOutcome,
+  useProjectStatus,
+  useDeleteProject,
+} from '@/features/projects/hooks'
+import { outcomesApi } from '@/features/projects/api'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { ResourceFormDialog } from '@/features/_shared'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { PageSkeleton } from '@/components/shared/LoadingSkeleton'
+import { ServerDataTable } from '@/components/shared/ServerDataTable'
 import { FacilitationNotice } from '@/components/shared/FacilitationNotice'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { FormField } from '@/components/ui/form-field'
 import { Checkbox } from '@/components/ui/checkbox'
-import { useForm, Controller } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { formatDate } from '@/lib/format'
+import { DEFAULT_PAGE_SIZE } from '@/config/constants'
+
+const PROJECT_STATUSES = ['Planned', 'InProgress', 'Paused', 'Completed', 'Cancelled']
+const OUTCOME_KINDS = ['Collaboration', 'Venture', 'Mentorship', 'Investment', 'Other']
+const OUTCOME_STATUSES = [
+  'InquiryReceived',
+  'DiscussionOngoing',
+  'ProposalExchanged',
+  'AgreementReported',
+  'NotProceeding',
+  'OutcomeUnknown',
+]
 
 function AddMilestone({ projectId }) {
   const [open, setOpen] = useState(false)
@@ -94,14 +122,230 @@ function AddTask({ projectId }) {
   )
 }
 
+function ProjectStatusSelector({ project, canManage }) {
+  const change = useProjectStatus()
+  if (!canManage) return null
+  return (
+    <div className="flex items-center gap-2" role="group" aria-label="Change project status">
+      <span className="text-sm text-muted-foreground">Status</span>
+      <Select
+        value={project.status}
+        onValueChange={(status) => change.mutate({ id: project.id, payload: { status } })}
+        disabled={change.isPending}
+      >
+        <SelectTrigger className="h-8 w-36" aria-label="Change project status">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {PROJECT_STATUSES.map((s) => (
+            <SelectItem key={s} value={s} disabled={s === project.status}>
+              {s}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
+function ReportOutcome({ ideaId }) {
+  const [open, setOpen] = useState(false)
+  const create = useCreateOutcome()
+  const form = useForm({
+    resolver: zodResolver(outcomeSchema),
+    defaultValues: { ideaId, kind: 'Collaboration', status: 'AgreementReported', description: '' },
+  })
+  if (!open) {
+    return (
+      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+        <ArrowRightCircle className="h-4 w-4" aria-hidden="true" />
+        Report outcome
+      </Button>
+    )
+  }
+  return (
+    <form
+      onSubmit={form.handleSubmit(async (values) => {
+        try {
+          await create.mutateAsync(values)
+          setOpen(false)
+          form.reset()
+        } catch (err) {
+          form.setError('root', { message: toErrorMessage(err) })
+        }
+      })}
+      noValidate
+      className="space-y-3 rounded-lg border p-4"
+    >
+      {form.formState.errors.root ? (
+        <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {form.formState.errors.root.message}
+        </p>
+      ) : null}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <FormField id="outcome-kind" label="Kind" required error={form.formState.errors.kind?.message}>
+          <Controller
+            control={form.control}
+            name="kind"
+            render={({ field }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger id="outcome-kind" aria-label="Outcome kind">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {OUTCOME_KINDS.map((kind) => (
+                    <SelectItem key={kind} value={kind}>{kind}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+        </FormField>
+        <FormField id="outcome-status" label="Stage" required error={form.formState.errors.status?.message}>
+          <Controller
+            control={form.control}
+            name="status"
+            render={({ field }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger id="outcome-status" aria-label="Outcome stage">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {OUTCOME_STATUSES.map((status) => (
+                    <SelectItem key={status} value={status}>{status}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+        </FormField>
+      </div>
+      <FormField id="outcome-description" label="Details (optional)" error={form.formState.errors.description?.message}>
+        <Textarea id="outcome-description" rows={3} {...form.register('description')} />
+      </FormField>
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" disabled={create.isPending}>{create.isPending ? 'Saving…' : 'Report'}</Button>
+        <Button type="button" size="sm" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+      </div>
+    </form>
+  )
+}
+
+function OutcomesTable({ ideaId, canVerify }) {
+  const [editing, setEditing] = useState(null)
+  const [pendingDelete, setPendingDelete] = useState(null)
+  const update = useUpdateOutcome()
+  const remove = useDeleteOutcome()
+  const verify = useVerifyOutcome()
+
+  const handleAction = (key, row) => {
+    if (key === 'edit') setEditing(row)
+    if (key === 'verify') verify.mutate({ id: row.id, payload: {} })
+    if (key === 'delete') setPendingDelete(row)
+  }
+
+  return (
+    <>
+      <ServerDataTable
+        queryKey={['outcomes', 'idea', ideaId]}
+        queryFn={(params) => outcomesApi.ideaOutcomes(ideaId, params)}
+        pageSize={DEFAULT_PAGE_SIZE}
+        searchable={false}
+        emptyTitle="No outcomes reported yet"
+        emptyDescription="Report outcomes as collaborations progress."
+        columns={[
+          { field: 'kind', title: 'Kind', headerSort: false, minWidth: 130 },
+          { field: 'status', title: 'Stage', headerSort: false, minWidth: 150 },
+          { field: 'description', title: 'Details', headerSort: false, widthGrow: 2,
+            formatter: (cell) => cell.getValue() || '—' },
+          { field: 'isVerified', title: 'Verified', headerSort: false, width: 100,
+            formatter: (cell) => (cell.getValue() ? 'Yes' : 'No') },
+          { field: 'createdAt', title: 'Reported', headerSort: false, minWidth: 130,
+            formatter: (cell) => formatDate(cell.getValue()) },
+        ]}
+        actions={[
+          { key: 'verify', label: 'Verify', visible: () => canVerify },
+          { key: 'edit', label: 'Edit' },
+          { key: 'delete', label: 'Delete', variant: 'destructive' },
+        ]}
+        onAction={handleAction}
+      />
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+        title="Delete this outcome?"
+        description="The reported outcome will be permanently removed."
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (pendingDelete) remove.mutate(pendingDelete.id)
+          setPendingDelete(null)
+        }}
+      />
+
+      <ResourceFormDialog
+        open={Boolean(editing)}
+        title="Edit outcome"
+        schema={outcomeSchema}
+        defaultValues={{
+          ideaId,
+          kind: editing?.kind ?? OUTCOME_KINDS[0],
+          status: editing?.status ?? OUTCOME_STATUSES[0],
+          description: editing?.description ?? '',
+        }}
+        submitLabel="Save"
+        onClose={() => setEditing(null)}
+        onSubmit={(values) => update.mutateAsync({ id: editing.id, payload: values })}
+      >
+        {(form) => (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormField id="outcome-edit-kind" label="Kind" required error={form.formState.errors.kind?.message}>
+                <Select value={form.watch('kind')} onValueChange={(v) => form.setValue('kind', v, { shouldValidate: true })}>
+                  <SelectTrigger id="outcome-edit-kind" aria-label="Outcome kind">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {OUTCOME_KINDS.map((kind) => (
+                      <SelectItem key={kind} value={kind}>{kind}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField id="outcome-edit-status" label="Stage" required error={form.formState.errors.status?.message}>
+                <Select value={form.watch('status')} onValueChange={(v) => form.setValue('status', v, { shouldValidate: true })}>
+                  <SelectTrigger id="outcome-edit-status" aria-label="Outcome stage">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {OUTCOME_STATUSES.map((status) => (
+                      <SelectItem key={status} value={status}>{status}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+            </div>
+            <FormField id="outcome-edit-description" label="Details (optional)" error={form.formState.errors.description?.message}>
+              <Textarea id="outcome-edit-description" rows={3} {...form.register('description')} />
+            </FormField>
+          </>
+        )}
+      </ResourceFormDialog>
+    </>
+  )
+}
+
 export default function ProjectPage() {
   const { id } = useParams()
-  const { can } = usePermission()
-  const canManage = can('admin') || can('moderator') || can('helper')
+  const navigate = useNavigate()
+  const { can, canPermission } = usePermission()
+  const { user } = useAuth()
+  const canManage = can('admin') || can('moderator')
+  const canCreateProject = canPermission('projects.create')
   const { data: project, isLoading, isError, error, refetch } = useProject(id)
   const addUpdate = useCreateProjectUpdate()
-  const { data: outcomes } = useIdeaOutcomes(project?.ideaId, Boolean(project?.ideaId && can('helper')))
-  const verifyOutcome = useVerifyOutcome()
+  const remove = useDeleteProject()
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   useDocumentTitle(project?.name ? `${project.name} — Project` : 'Project')
 
   const form = useForm({
@@ -112,6 +356,9 @@ export default function ProjectPage() {
   if (isLoading) return <PageSkeleton lines={6} />
   if (isError) return <ErrorState message={error?.message} onRetry={refetch} />
   if (!project) return <ErrorState title="Project not found" message="This project may have been removed." />
+
+  const isLead = Boolean(user?.id && project.leadUserId && user.id === project.leadUserId)
+  const canEdit = canManage || isLead
 
   const milestones = project.milestones ?? []
   const tasks = project.tasks ?? []
@@ -132,9 +379,29 @@ export default function ProjectPage() {
         title={project.name}
         description={project.idea?.title ? `Part of "${project.idea.title}"` : 'Community project'}
         actions={
-          canManage ? (
+          <div className="flex flex-wrap items-center gap-3">
+            {canCreateProject ? (
+              <Button asChild size="sm" variant="outline">
+                <Link to={`/projects/new?ideaId=${project.ideaId}`}>Create project</Link>
+              </Button>
+            ) : null}
+            {canEdit ? (
+              <Button asChild size="sm" variant="outline">
+                <Link to={`/projects/${project.id}/edit`}>
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                  Edit
+                </Link>
+              </Button>
+            ) : null}
+            {canEdit ? (
+              <Button size="sm" variant="outline" onClick={() => setConfirmingDelete(true)}>
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                Delete
+              </Button>
+            ) : null}
             <StatusBadge status={project.status} />
-          ) : null
+            <ProjectStatusSelector project={project} canManage={canManage} />
+          </div>
         }
       />
 
@@ -263,31 +530,32 @@ export default function ProjectPage() {
         </CardContent>
       </Card>
 
-      {canManage && ((outcomes?.items ?? outcomes ?? []).length > 0 ? (
+      {canManage ? (
         <Card>
-          <CardHeader>
+          <CardHeader className="flex items-center justify-between gap-2">
             <CardTitle>Outcomes</CardTitle>
+            <ReportOutcome ideaId={project.ideaId} />
           </CardHeader>
-          <CardContent className="space-y-3">
-            {(outcomes.items ?? []).map((outcome) => (
-              <div key={outcome.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
-                <div>
-                  <p className="font-medium">{outcome.kind}</p>
-                  {outcome.description ? <p className="text-muted-foreground">{outcome.description}</p> : null}
-                </div>
-                <div className="flex items-center gap-2">
-                  <StatusBadge status={outcome.status} />
-                  <Button size="sm" variant="outline" onClick={() => verifyOutcome.mutate({ id: outcome.id, payload: {} })}>
-                    Mark verified
-                  </Button>
-                </div>
-              </div>
-            ))}
+          <CardContent>
+            <OutcomesTable ideaId={project.ideaId} canVerify={can('admin') || can('moderator') || can('reviewer')} />
           </CardContent>
         </Card>
-      ) : null)}
+      ) : null}
 
       <FacilitationNotice />
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        title="Delete this project?"
+        description="This project will be removed for everyone. This cannot be undone."
+        confirmLabel="Delete project"
+        onConfirm={() => {
+          remove.mutate(project.id, {
+            onSuccess: () => navigate(project.idea?.slug ? `/ideas/${project.idea.slug}` : '/'),
+          })
+        }}
+      />
     </div>
   )
 }

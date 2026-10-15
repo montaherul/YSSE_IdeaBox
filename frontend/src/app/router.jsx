@@ -1,9 +1,9 @@
 import { lazy, Suspense } from 'react'
-import { createBrowserRouter, Outlet } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom'
 import { Providers } from './providers'
-import { PublicLayout } from '@/components/layout/PublicLayout'
-import { AppShell } from '@/components/layout/AppShell'
-import { ProtectedRoute, AdminRoute } from '@/components/layout/ProtectedRoute'
+import { PublicLayout } from '@/layouts/PublicLayout'
+import { WorkspaceLayout } from '@/layouts/WorkspaceLayout'
+import { ProtectedRoute, AdminRoute } from '@/layouts/ProtectedRoute'
 import { PageSkeleton } from '@/components/shared/LoadingSkeleton'
 
 // Lazy-loaded routes (rule.md §4: admin dashboard + marketplace load lazily).
@@ -22,20 +22,33 @@ const wrapLazy = (factory) => {
   )
 }
 
+// Per-route guard (role access first, then permission access).
+const guard = (element, { roles, permissions } = {}) => (
+  <ProtectedRoute roles={roles} permissions={permissions}>
+    {element}
+  </ProtectedRoute>
+)
+
 // ---- Lazy page references ----
 const MarketplacePage = () => wrapLazy(() => import('@/features/marketplace/pages/MarketplacePage.jsx'))
 const ListingDetailPage = () => wrapLazy(() => import('@/features/marketplace/pages/ListingDetailPage.jsx'))
 const NewListingPage = () => wrapLazy(() => import('@/features/marketplace/pages/NewListingPage.jsx'))
 const MyListingsPage = () => wrapLazy(() => import('@/features/marketplace/pages/MyListingsPage.jsx'))
+const EditListingPage = () => wrapLazy(() => import('@/features/marketplace/pages/EditListingPage.jsx'))
 
-const AdminLayout = () => wrapLazy(() => import('@/features/admin/components/AdminLayout.jsx'))
 const AdminDashboardPage = () => wrapLazy(() => import('@/features/admin/pages/AdminDashboardPage.jsx'))
-const AdminUsersPage = () => wrapLazy(() => import('@/features/admin/pages/AdminUsersPage.jsx'))
+const UsersPage = () => wrapLazy(() => import('@/features/users/pages/UsersPage.jsx'))
 const AdminModerationPage = () => wrapLazy(() => import('@/features/admin/pages/AdminModerationPage.jsx'))
 const AdminCategoriesPage = () => wrapLazy(() => import('@/features/admin/pages/AdminCategoriesPage.jsx'))
 const AdminVotingPage = () => wrapLazy(() => import('@/features/admin/pages/AdminVotingPage.jsx'))
 const AdminAuditPage = () => wrapLazy(() => import('@/features/admin/pages/AdminAuditPage.jsx'))
 const AdminSettingsPage = () => wrapLazy(() => import('@/features/admin/pages/AdminSettingsPage.jsx'))
+const AdminTagsPage = () => wrapLazy(() => import('@/features/admin/pages/AdminTagsPage.jsx'))
+const AdminContentPage = () => wrapLazy(() => import('@/features/admin/pages/AdminContentPage.jsx'))
+const AdminRolesPage = () => wrapLazy(() => import('@/features/admin/pages/AdminRolesPage.jsx'))
+const AdminFeaturedPage = () => wrapLazy(() => import('@/features/admin/pages/AdminFeaturedPage.jsx'))
+const AdminEntrepreneursPage = () => wrapLazy(() => import('@/features/admin/pages/AdminEntrepreneursPage.jsx'))
+const AdminPermissionsPage = () => wrapLazy(() => import('@/features/admin/pages/AdminPermissionsPage.jsx'))
 
 export const router = createBrowserRouter([
   {
@@ -78,7 +91,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       {
-        element: <AppShell />,
+        element: <WorkspaceLayout />,
         children: [
           { path: '/app', element: <DashboardPage /> },
           { path: '/app/ideas', element: <MyIdeasPage /> },
@@ -101,9 +114,14 @@ export const router = createBrowserRouter([
           { path: '/inbox/:conversationId', element: <ConversationPage /> },
           { path: '/entrepreneur', element: <EntrepreneurPortalPage /> },
           { path: '/entrepreneur/profile', element: <EntrepreneurProfilePage /> },
+          { path: '/creator/profile', element: <CreatorProfileEditorPage /> },
           { path: '/inquiries', element: <InquiriesPage /> },
+          { path: '/problems/:id/edit', element: <EditProblemPage /> },
           { path: '/marketplace/new', element: <NewListingPage /> },
           { path: '/marketplace/mine', element: <MyListingsPage /> },
+          { path: '/marketplace/:id/edit', element: <EditListingPage /> },
+          { path: '/projects/new', element: guard(<ProjectCreatePage />, { permissions: ['projects.create'] }) },
+          { path: '/projects/:id/edit', element: <EditProjectPage /> },
           { path: '/projects/:id', element: <ProjectPage /> },
           {
             element: (
@@ -128,22 +146,30 @@ export const router = createBrowserRouter([
     ),
     children: [
       {
-        element: <AppShell />,
+        element: <WorkspaceLayout />,
         children: [
+          { path: '/admin', element: guard(<AdminDashboardPage />, { permissions: ['dashboard.read'] }) },
+          { path: '/users', element: guard(<UsersPage />, { permissions: ['users.read'] }) },
+          { path: '/admin/users', element: <Navigate to="/users" replace /> },
+          { path: '/admin/roles', element: guard(<AdminRolesPage />, { permissions: ['roles.read'] }) },
+          { path: '/admin/permissions', element: guard(<AdminPermissionsPage />, { permissions: ['permissions.read'] }) },
+          { path: '/admin/entrepreneurs', element: guard(<AdminEntrepreneursPage />, { permissions: ['inquiries.read'] }) },
+          { path: '/admin/categories', element: guard(<AdminCategoriesPage />, { permissions: ['categories.read'] }) },
+          { path: '/admin/tags', element: guard(<AdminTagsPage />, { permissions: ['tags.read'] }) },
+          { path: '/admin/content', element: guard(<AdminContentPage />, { permissions: ['staticcontent.read'] }) },
+          { path: '/admin/voting', element: guard(<AdminVotingPage />, { permissions: ['votingperiods.read'] }) },
+          { path: '/admin/featured', element: guard(<AdminFeaturedPage />, { permissions: ['ideas.feature'] }) },
+          { path: '/admin/sessions', element: guard(<AdminVotingPage />, { permissions: ['votingperiods.read'] }) },
+          { path: '/admin/audit', element: guard(<AdminAuditPage />, { permissions: ['audit.read'] }) },
+          { path: '/admin/reports', element: guard(<AdminAuditPage />, { permissions: ['audit.read'] }) },
+          { path: '/admin/settings', element: guard(<AdminSettingsPage />, { permissions: ['settings.read'] }) },
           {
-            element: <AdminRoute><AdminLayout /></AdminRoute>,
-            children: [
-              { path: '/admin', index: true, element: <AdminDashboardPage /> },
-              { path: '/admin/users', element: <AdminUsersPage /> },
-              { path: '/admin/ideas', element: <AdminModerationPage /> },
-              { path: '/admin/sessions', element: <AdminVotingPage /> },
-              { path: '/admin/reports', element: <AdminAuditPage /> },
-              { path: '/admin/moderation', element: <AdminModerationPage /> },
-              { path: '/admin/categories', element: <AdminCategoriesPage /> },
-              { path: '/admin/voting', element: <AdminVotingPage /> },
-              { path: '/admin/audit', element: <AdminAuditPage /> },
-              { path: '/admin/settings', element: <AdminSettingsPage /> },
-            ],
+            path: '/admin/moderation',
+            element: guard(<AdminModerationPage />, { roles: ['moderator', 'reviewer'], permissions: ['reports.read'] }),
+          },
+          {
+            path: '/admin/ideas',
+            element: guard(<AdminModerationPage />, { roles: ['moderator', 'reviewer'], permissions: ['reports.read'] }),
           },
         ],
       },
@@ -154,7 +180,7 @@ export const router = createBrowserRouter([
 // Lightweight layer so main.jsx stays minimal.
 
 function LandingPage() {
-  return wrapLazy(() => import('@/features/ideas/pages/LandingPage.jsx'))
+  return wrapLazy(() => import('@/features/home/pages/LandingPage.jsx'))
 }
 function DiscoverPage() {
   return wrapLazy(() => import('@/features/ideas/pages/DiscoverPage.jsx'))
@@ -176,6 +202,9 @@ function ProblemDetailPage() {
 }
 function NewProblemPage() {
   return wrapLazy(() => import('@/features/problems/pages/NewProblemPage.jsx'))
+}
+function EditProblemPage() {
+  return wrapLazy(() => import('@/features/problems/pages/EditProblemPage.jsx'))
 }
 function LeaderboardsPage() {
   return wrapLazy(() => import('@/features/voting/pages/LeaderboardsPage.jsx'))
@@ -246,11 +275,20 @@ function EntrepreneurPortalPage() {
 function EntrepreneurProfilePage() {
   return wrapLazy(() => import('@/features/profile/pages/EntrepreneurProfilePage.jsx'))
 }
+function CreatorProfileEditorPage() {
+  return wrapLazy(() => import('@/features/profile/pages/CreatorProfileEditorPage.jsx'))
+}
 function InquiriesPage() {
   return wrapLazy(() => import('@/features/entrepreneur/pages/InquiriesPage.jsx'))
 }
 function ProjectPage() {
   return wrapLazy(() => import('@/features/projects/pages/ProjectPage.jsx'))
+}
+function ProjectCreatePage() {
+  return wrapLazy(() => import('@/features/projects/pages/ProjectCreatePage.jsx'))
+}
+function EditProjectPage() {
+  return wrapLazy(() => import('@/features/projects/pages/EditProjectPage.jsx'))
 }
 function ReviewQueuePage() {
   return wrapLazy(() => import('@/features/admin/pages/ReviewQueuePage.jsx'))

@@ -12,6 +12,17 @@ export const BOUNDARY_NOTICE =
 export const DEFAULT_PAGE_SIZE = 20
 export const MAX_PAGE_SIZE = 100
 
+/** Category names used as a fallback before the catalogue has been seeded. */
+export const FALLBACK_CATEGORY_NAMES = [
+  'Technology',
+  'Education',
+  'Healthcare',
+  'Agriculture',
+  'Environment',
+  'Social Innovation',
+  'Business',
+]
+
 export const GUEST_REVIEW_NOTICE =
   'As a guest you can submit one anonymous review on one idea (best-effort limit). Signing in lets you review more ideas.'
 

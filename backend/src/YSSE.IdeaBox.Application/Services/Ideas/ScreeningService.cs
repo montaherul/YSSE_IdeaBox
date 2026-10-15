@@ -39,8 +39,19 @@ public sealed class ScreeningService : IScreeningService
         }
 
         var (page, pageSize) = Pagination.Normalize(query.Page, query.PageSize);
-        var q = _unitOfWork.Repository<Idea>().Query().Where(i => !i.IsDeleted &&
-                                     (i.Status == IdeaStatus.Submitted || i.Status == IdeaStatus.UnderReview));
+        var q = _unitOfWork.Repository<Idea>().Query().AsNoTracking().Where(i => !i.IsDeleted);
+
+        if (query.Status is not null)
+        {
+            var statusFilter = query.Status.Value;
+            q = q.Where(i => i.Status == statusFilter);
+        }
+        else
+        {
+            q = q.Where(i => i.Status == IdeaStatus.Submitted ||
+                             i.Status == IdeaStatus.UnderReview ||
+                             i.Status == IdeaStatus.RevisionRequired);
+        }
 
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
@@ -57,6 +68,7 @@ public sealed class ScreeningService : IScreeningService
         var total = await q.CountAsync(ct);
         var items = await q
             .OrderBy(x => x.SubmittedAt ?? x.CreatedAt)
+            .ThenBy(x => x.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(IdeaProjections.List)
@@ -72,7 +84,15 @@ public sealed class ScreeningService : IScreeningService
             throw new ForbiddenException();
         }
 
-        if (request.Decision is not (IdeaStatus.Published or IdeaStatus.Rejected or IdeaStatus.RevisionRequired))
+        IdeaStatus? to = request.Decision?.Trim().ToLowerInvariant() switch
+        {
+            "approve" or "published" => IdeaStatus.Published,
+            "reject" or "rejected" => IdeaStatus.Rejected,
+            "requestrevision" or "revisionrequired" => IdeaStatus.RevisionRequired,
+            _ => (IdeaStatus?)null
+        };
+
+        if (to is null)
         {
             return Result.Fail("A screening decision must be Published, Rejected or RevisionRequired.");
         }
@@ -83,16 +103,19 @@ public sealed class ScreeningService : IScreeningService
             throw new NotFoundException("Idea not found.");
         }
 
-        if (idea.Status is not (IdeaStatus.Submitted or IdeaStatus.UnderReview))
+        var from = idea.Status;
+        var decision = to.Value;
+
+        if (from != IdeaStatus.Submitted && !IdeaStatusMachine.CanTransition(from, decision))
         {
-            return Result.Fail("Only submitted or under-review ideas can be screened.");
+            return Result.Fail($"The transition from {from} to {decision} is not allowed.");
         }
 
         await _unitOfWork.Repository<IdeaScreeningDecision>().AddAsync(new IdeaScreeningDecision
         {
             IdeaId = idea.Id,
             ReviewerUserId = _current.RequireUserId(),
-            Decision = request.Decision,
+            Decision = decision,
             OriginalityScore = request.OriginalityScore,
             FeasibilityScore = request.FeasibilityScore,
             RelevanceScore = request.RelevanceScore,
@@ -101,9 +124,13 @@ public sealed class ScreeningService : IScreeningService
             CreatedAt = _clock.UtcNow
         }, ct);
 
-        var from = idea.Status;
-        await ApplyStatusAsync(idea, request.Decision, request.Feedback, ct);
-        if (request.Decision == IdeaStatus.Published)
+        if (from == IdeaStatus.Submitted)
+        {
+            await ApplyStatusAsync(idea, IdeaStatus.UnderReview, "Opened for review", ct);
+        }
+
+        await ApplyStatusAsync(idea, decision, request.Feedback, ct);
+        if (decision == IdeaStatus.Published)
         {
             idea.PublishedAt = _clock.UtcNow;
         }
@@ -111,19 +138,19 @@ public sealed class ScreeningService : IScreeningService
         idea.UpdatedAt = _clock.UtcNow;
         await _unitOfWork.SaveChangesAsync(ct);
 
-        var type = request.Decision switch
+        var type = decision switch
         {
             IdeaStatus.Published => NotificationType.ScreeningDecision,
             IdeaStatus.RevisionRequired => NotificationType.RevisionRequested,
             _ => NotificationType.ScreeningDecision
         };
         await _notifications.NotifyAsync(idea.CreatorUserId, type,
-            $"Your idea was {request.Decision.ToString().ToLowerInvariant()}",
-            $"Your idea \"{idea.Title}\" screening result: {request.Decision}.",
+            $"Your idea was {decision.ToString().ToLowerInvariant()}",
+            $"Your idea \"{idea.Title}\" screening result: {decision}.",
             null, ct: ct);
 
-await _audit.RecordAsync("ScreeningDecided", nameof(Idea), idea.Id.ToString(),
-            request.Feedback, new { idea.CreatorUserId, from, to = request.Decision }, ct);
+        await _audit.RecordAsync("ScreeningDecided", nameof(Idea), idea.Id.ToString(),
+            request.Feedback, new { idea.CreatorUserId, from, to = decision }, ct);
 
         return Result.Ok();
     }

@@ -30,6 +30,11 @@ public interface IProfileService
 
     Task<Result> UpdateMemberProfileAsync(MemberProfileUpdateRequest request, CancellationToken ct = default);
 
+    /// <summary>Stores a profile picture (WebP) and returns its media URL.</summary>
+    Task<Result<string>> UploadAvatarAsync(Stream content, string fileName, string contentType, long length, CancellationToken ct = default);
+
+    Task<Result> RemoveAvatarAsync(CancellationToken ct = default);
+
     Task<CreatorProfileDto?> GetMyCreatorProfileAsync(CancellationToken ct = default);
 
     Task<CreatorProfileDto?> GetPublicCreatorProfileAsync(int userId, CancellationToken ct = default);
@@ -58,4 +63,12 @@ public interface ICategoryService
     Task<Result> UpdateCategoryAsync(int id, CategoryUpsertRequest request, CancellationToken ct = default);
 
     Task<Result> DeleteCategoryAsync(int id, CancellationToken ct = default);
+
+    Task<PagedResult<TagDto>> GetTagsPagedAsync(int page, int pageSize, string? search, CancellationToken ct = default);
+
+    Task<Result<int>> CreateTagAsync(TagUpsertRequest request, CancellationToken ct = default);
+
+    Task<Result> UpdateTagAsync(int id, TagUpsertRequest request, CancellationToken ct = default);
+
+    Task<Result> DeleteTagAsync(int id, CancellationToken ct = default);
 }

@@ -12,16 +12,11 @@ namespace YSSE.IdeaBox.Infrastructure;
 public sealed class UnitOfWork : IUnitOfWork
 {
     private readonly AppDbContext _context;
-    private readonly ISqlQueryExecutor _queryExecutor;
 
-    public UnitOfWork(AppDbContext context, ISqlQueryExecutor queryExecutor)
-    {
-        _context = context;
-        _queryExecutor = queryExecutor;
-    }
+    public UnitOfWork(AppDbContext context) => _context = context;
 
     public IGenericRepository<TEntity> Repository<TEntity>() where TEntity : class
-        => new GenericRepository<TEntity>(_context, _queryExecutor);
+        => new GenericRepository<TEntity>(_context);
 
     public Task<int> SaveChangesAsync(CancellationToken ct = default)
         => _context.SaveChangesAsync(ct);

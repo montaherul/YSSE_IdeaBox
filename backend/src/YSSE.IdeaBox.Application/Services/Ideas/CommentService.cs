@@ -31,16 +31,21 @@ public sealed class CommentService : ICommentService
         _notifications = notifications;
     }
 
-    public async Task<IReadOnlyList<CommentDto>> GetCommentsAsync(int ideaId, CancellationToken ct = default)
+    public async Task<PagedResult<CommentDto>> GetCommentsAsync(int ideaId, int page, int pageSize, CancellationToken ct = default)
     {
+        var (p, s) = Pagination.Normalize(page, pageSize);
         var q = _unitOfWork.Repository<IdeaComment>().Query().Where(c => c.IdeaId == ideaId && !c.IsDeleted);
         if (!_current.IsModeratorOrAdmin)
         {
             q = q.Where(c => c.ModerationStatus == ReviewModerationStatus.Published);
         }
 
-        return await q
+        var total = await q.CountAsync(ct);
+
+        var items = await q
             .OrderBy(c => c.CreatedAt)
+            .Skip((p - 1) * s)
+            .Take(s)
             .Select(c => new CommentDto
             {
                 Id = c.Id,
@@ -51,9 +56,13 @@ public sealed class CommentService : ICommentService
                     ? "Anonymous"
                     : _unitOfWork.Repository<User>().Query().Where(u => u.Id == c.AuthorUserId).Select(u => u.DisplayName).FirstOrDefault() ?? "Member",
                 ModerationStatus = c.ModerationStatus,
+                CanDelete = c.AuthorUserId != 0 && (c.AuthorUserId == _current.UserId || _current.IsModeratorOrAdmin),
+                CanEdit = c.AuthorUserId != 0 && c.AuthorUserId == _current.UserId,
                 CreatedAt = c.CreatedAt
             })
             .ToListAsync(ct);
+
+        return PagedResult<CommentDto>.Create(items, p, s, total);
     }
 
     public async Task<Result<CommentDto>> AddCommentAsync(int ideaId, CommentCreateRequest request, CancellationToken ct = default)
@@ -94,7 +103,7 @@ public sealed class CommentService : ICommentService
                 "New comment on your idea", $"{authorName} commented on \"{idea.Title}\".", null, ct: ct);
         }
 
-        return Result<CommentDto>.Ok(new CommentDto
+return Result<CommentDto>.Ok(new CommentDto
         {
             Id = comment.Id,
             IdeaId = ideaId,
@@ -102,8 +111,33 @@ public sealed class CommentService : ICommentService
             Body = comment.Body,
             AuthorName = idea.Attribution == IdeaAttribution.Anonymous && userId == idea.CreatorUserId ? "Anonymous" : authorName,
             ModerationStatus = comment.ModerationStatus,
+            CanDelete = true,
+            CanEdit = true,
             CreatedAt = comment.CreatedAt
         });
+    }
+
+    public async Task<Result> UpdateCommentAsync(int commentId, CommentUpdateRequest request, CancellationToken ct = default)
+    {
+        var userId = _current.RequireUserId();
+        var comment = await _unitOfWork.Repository<IdeaComment>().Query().FirstOrDefaultAsync(c => c.Id == commentId && !c.IsDeleted, ct);
+        if (comment is null)
+        {
+            throw new NotFoundException("Comment not found.");
+        }
+
+        if (comment.AuthorUserId != userId)
+        {
+            throw new ForbiddenException();
+        }
+
+        comment.Body = request.Body;
+        comment.UpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        await _audit.RecordAsync("CommentEdited", nameof(IdeaComment), comment.Id.ToString(),
+            null, new { comment.IdeaId }, ct);
+        return Result.Ok();
     }
 
     public async Task<Result> DeleteCommentAsync(int commentId, CancellationToken ct = default)

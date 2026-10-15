@@ -3,6 +3,7 @@ using YSSE.IdeaBox.Application.Abstractions;
 using YSSE.IdeaBox.Application.Abstractions.Services;
 using YSSE.IdeaBox.Application.Common;
 using YSSE.IdeaBox.Application.Dtos;
+using YSSE.IdeaBox.Application.Services.Common;
 using YSSE.IdeaBox.Domain.Entities;
 using YSSE.IdeaBox.Domain.Enums;
 
@@ -21,6 +22,23 @@ public sealed class ReportService : IReportService
         _current = current;
         _clock = clock;
         _audit = audit;
+    }
+
+    public async Task<Result> CreateAsync(ReportCreateRequest request, CancellationToken ct = default)
+    {
+        var reporterId = _current.RequireUserId();
+        await _unitOfWork.Repository<Report>().AddAsync(new Report
+        {
+            TargetType = request.TargetType,
+            TargetId = request.TargetId,
+            ReporterUserId = reporterId,
+            Reason = request.Reason,
+            Details = request.Details,
+            Status = ReportStatus.Open,
+            CreatedAt = _clock.UtcNow
+        }, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result.Ok();
     }
 
     public async Task<PagedResult<ReportDto>> ListAsync(ReportStatus? status, int page, int pageSize, CancellationToken ct = default)
@@ -78,6 +96,50 @@ public sealed class ReportService : IReportService
         }).ToList();
 
         return PagedResult<ReportDto>.Create(result, p, s, total);
+    }
+
+    public async Task<Result> UpdateAsync(int id, ReportUpdateRequest request, CancellationToken ct = default)
+    {
+        if (!_current.IsModeratorOrAdmin)
+        {
+            throw new ForbiddenException();
+        }
+
+        var report = await _unitOfWork.Repository<Report>().Query().FirstOrDefaultAsync(r => r.Id == id, ct);
+        if (report is null)
+        {
+            throw new NotFoundException("Report not found.");
+        }
+
+        report.Reason = request.Reason;
+        report.Details = request.Details;
+        report.Status = request.Status;
+        report.UpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        await _audit.RecordAsync("ReportUpdated", nameof(Report), report.Id.ToString(),
+            null, new { request.Status }, ct);
+        return Result.Ok();
+    }
+
+    public async Task<Result> DeleteAsync(int id, CancellationToken ct = default)
+    {
+        if (!_current.IsModeratorOrAdmin)
+        {
+            throw new ForbiddenException();
+        }
+
+        var report = await _unitOfWork.Repository<Report>().Query().FirstOrDefaultAsync(r => r.Id == id, ct);
+        if (report is null)
+        {
+            throw new NotFoundException("Report not found.");
+        }
+
+        _unitOfWork.Repository<Report>().Remove(report);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        await _audit.RecordAsync("ReportDeleted", nameof(Report), id.ToString(), null, null, ct);
+        return Result.Ok();
     }
 
     public async Task<Result> ResolveAsync(int id, ReportResolveRequest request, CancellationToken ct = default)

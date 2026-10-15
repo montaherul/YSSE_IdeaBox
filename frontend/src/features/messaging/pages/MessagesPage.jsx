@@ -1,75 +1,86 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { MessageSquare } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Archive, ArchiveRestore, MessageSquare } from 'lucide-react'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
-import { useConversations } from '../hooks'
-import { UserAvatar } from '@/components/shared/UserAvatar'
+import { useConversationStatus } from '@/features/messaging/hooks'
+import { messagingApi } from '@/features/messaging/api'
 import { PageHeader } from '@/components/shared/PageHeader'
-import { EmptyState } from '@/components/shared/EmptyState'
-import { ErrorState } from '@/components/shared/ErrorState'
-import { CardSkeleton } from '@/components/shared/LoadingSkeleton'
-import { Pagination } from '@/components/shared/Pagination'
-import { timeAgo } from '@/lib/format'
+import { ServerDataTable } from '@/components/shared/ServerDataTable'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { formatNumber, timeAgo } from '@/lib/format'
 import { DEFAULT_PAGE_SIZE } from '@/config/constants'
+
+const CONVERSATIONS_QUERY_KEY = ['conversations', 'list']
+const STATUS_CLOSED = 'Closed'
+const STATUS_REOPEN = 'Open'
+const STATUS_BLOCKED = 'Blocked'
+
+const fetchConversations = (params) => messagingApi.conversations(params)
 
 export default function MessagesPage() {
   useDocumentTitle('Messages')
-  const [page, setPage] = useState(1)
-  const { data, isLoading, isError, refetch } = useConversations({ page, pageSize: DEFAULT_PAGE_SIZE })
+  const navigate = useNavigate()
+  const [pendingClose, setPendingClose] = useState(null)
+  const setStatus = useConversationStatus()
 
-  const items = data?.items ?? []
-  const total = data?.total ?? 0
+  const changeStatus = (conversation, status) =>
+    setStatus.mutate({ id: conversation.id, payload: { status } })
+
+  const handleAction = (key, row) => {
+    if (key === 'open') navigate(`/messages/${row.id}`)
+    if (key === 'reopen') changeStatus(row, STATUS_REOPEN)
+    if (key === 'close') setPendingClose(row)
+  }
 
   return (
     <div className="space-y-6">
       <PageHeader title="Messages" description="Your private conversations with community members." />
 
-      {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <CardSkeleton />
-          <CardSkeleton />
-        </div>
-      ) : null}
-      {isError ? <ErrorState onRetry={refetch} /> : null}
+      <ServerDataTable
+        queryKey={CONVERSATIONS_QUERY_KEY}
+        queryFn={fetchConversations}
+        pageSize={DEFAULT_PAGE_SIZE}
+        searchable={false}
+        emptyIcon={MessageSquare}
+        emptyTitle="No conversations yet"
+        emptyDescription="Start a conversation from an idea or inquiry."
+        onRowClick={(row) => navigate(`/messages/${row.id}`)}
+        columns={[
+          { field: 'counterpartyName', title: 'With', headerSort: false, minWidth: 160,
+            formatter: (cell) => cell.getValue() || 'Member' },
+          { field: 'lastMessagePreview', title: 'Last message', headerSort: false, widthGrow: 2,
+            formatter: (cell) => cell.getValue() || 'No messages yet' },
+          { field: 'lastMessageAt', title: 'Last activity', headerSort: false, minWidth: 150,
+            formatter: (cell) => (cell.getValue() ? timeAgo(cell.getValue()) : '—') },
+          { field: 'unreadCount', title: 'Unread', headerSort: false, width: 100, hozAlign: 'right',
+            formatter: (cell) => formatNumber(Number(cell.getValue() ?? 0)) },
+          { field: 'status', title: 'Status', headerSort: false, minWidth: 120 },
+        ]}
+        actions={[
+          { key: 'open', label: 'Open' },
+          {
+            key: 'close',
+            label: 'Close',
+            visible: (row) => row.status !== STATUS_CLOSED && row.status !== STATUS_BLOCKED,
+          },
+          { key: 'reopen', label: 'Reopen', visible: (row) => row.status === STATUS_CLOSED },
+        ]}
+        onAction={handleAction}
+      />
 
-      {!isLoading && !isError && items.length === 0 ? (
-        <EmptyState
-          icon={MessageSquare}
-          title="No conversations yet"
-          description="Start a conversation from an idea or inquiry."
-        />
-      ) : null}
-
-      {!isLoading && !isError && items.length > 0 ? (
-        <>
-          <div className="space-y-3">
-            {items.map((conversation) => {
-              const other = conversation.otherParticipant ?? conversation.participant
-              const unread = Number(conversation.unreadCount ?? 0)
-              return (
-                <Link key={conversation.id} to={`/messages/${conversation.id}`} className="block rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
-                  <div className="flex items-center gap-4">
-                    <UserAvatar name={other?.displayName} src={other?.imageUrl} className="h-10 w-10" />
-                    <div className="min-w-0 flex-1">
-                      <p className="flex items-center justify-between gap-2 font-medium">
-                        <span className="truncate">{other?.displayName ?? 'Member'}</span>
-                        {conversation.updatedAt ? <span className="shrink-0 text-xs font-normal text-muted-foreground">{timeAgo(conversation.updatedAt)}</span> : null}
-                      </p>
-                      <p className="mt-0.5 truncate text-sm text-muted-foreground">{conversation.lastMessage ?? 'No messages yet'}</p>
-                    </div>
-                    {unread > 0 ? (
-                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground" aria-label={`${unread} unread messages`}>
-                        {unread}
-                      </span>
-                    ) : null}
-                  </div>
-                </Link>
-              )
-            })}
-          </div>
-          <Pagination page={page} pageSize={DEFAULT_PAGE_SIZE} total={total} onChange={setPage} />
-        </>
-      ) : null}
+      <ConfirmDialog
+        open={Boolean(pendingClose)}
+        onOpenChange={(open) => {
+          if (!open) setPendingClose(null)
+        }}
+        title="Close this conversation?"
+        description="Closing stops new messages. You can reopen it later from the conversation."
+        confirmLabel="Close conversation"
+        onConfirm={() => {
+          if (pendingClose) changeStatus(pendingClose, STATUS_CLOSED)
+          setPendingClose(null)
+        }}
+      />
     </div>
   )
 }

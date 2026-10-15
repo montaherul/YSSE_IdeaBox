@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using YSSE.IdeaBox.Application.Abstractions;
 using YSSE.IdeaBox.Application.Abstractions.Services;
 using YSSE.IdeaBox.Application.Common;
@@ -23,6 +24,10 @@ public sealed class AuthService : IAuthService
     private readonly IVerificationCodeStore _verificationCodes;
     private readonly IHashingService _hashing;
     private readonly IAuditWriter _audit;
+    private readonly IEmailSender _email;
+    private readonly ISmsSender _sms;
+    private readonly IUserPermissionService _permissions;
+    private readonly ILogger<AuthService> _logger;
 
     public AuthService(
         IUnitOfWork db,
@@ -32,7 +37,11 @@ public sealed class AuthService : IAuthService
         IDateTimeProvider clock,
         IVerificationCodeStore verificationCodes,
         IHashingService hashing,
-        IAuditWriter audit)
+        IAuditWriter audit,
+        IEmailSender email,
+        ISmsSender sms,
+        IUserPermissionService permissions,
+        ILogger<AuthService> logger)
     {
         _unitOfWork = db;
         _current = current;
@@ -42,6 +51,10 @@ public sealed class AuthService : IAuthService
         _verificationCodes = verificationCodes;
         _hashing = hashing;
         _audit = audit;
+        _email = email;
+        _sms = sms;
+        _permissions = permissions;
+        _logger = logger;
     }
 
     public async Task<Result<AuthResponse>> RegisterAsync(RegisterRequest request, CancellationToken ct = default)
@@ -96,7 +109,7 @@ public sealed class AuthService : IAuthService
         };
         await _unitOfWork.Repository<MemberProfile>().AddAsync(user.MemberProfile, ct);
 
-        var memberRole = await _unitOfWork.Repository<Role>().Query().FirstOrDefaultAsync(r => r.Name == RoleName.Member, ct);
+        var memberRole = await _unitOfWork.Repository<Role>().Query().FirstOrDefaultAsync(r => r.Name == SystemRoles.Member, ct);
         if (memberRole is not null)
         {
             await _unitOfWork.Repository<UserRole>().AddAsync(new UserRole
@@ -110,7 +123,9 @@ public sealed class AuthService : IAuthService
         await _unitOfWork.SaveChangesAsync(ct);
 
         var code = GenerateCode();
-        _verificationCodes.Store(user.Id, email is not null ? "email" : "phone", code, VerificationLifetime);
+        var purpose = email is not null ? "email" : "phone";
+        _verificationCodes.Store(user.Id, purpose, code, VerificationLifetime);
+        await DispatchVerificationAsync(user, purpose, code, ct);
 
         var response = await IssueTokensAsync(user, ct);
         return Result<AuthResponse>.Ok(response with { VerificationCode = code });
@@ -220,7 +235,9 @@ public sealed class AuthService : IAuthService
         }
 
         var purpose = user.Email is not null ? "email" : "phone";
-        _verificationCodes.Store(userId, purpose, GenerateCode(), VerificationLifetime);
+        var code = GenerateCode();
+        _verificationCodes.Store(userId, purpose, code, VerificationLifetime);
+        await DispatchVerificationAsync(user, purpose, code, ct);
         return Result.Ok($"A verification code was sent via {purpose}.");
     }
 
@@ -270,6 +287,7 @@ public sealed class AuthService : IAuthService
 
         var code = GenerateCode();
         _verificationCodes.Store(user.Id, PasswordResetPurpose, code, PasswordResetLifetime);
+        await DispatchPasswordResetAsync(user, code, ct);
         return Result<ForgotPasswordResponse>.Ok(new ForgotPasswordResponse { ResetCode = code });
     }
 
@@ -336,6 +354,9 @@ public sealed class AuthService : IAuthService
         var roles = await GetRoleNamesAsync(user.Id, ct);
         var hasCreator = await _unitOfWork.Repository<CreatorProfile>().Query().AnyAsync(p => p.UserId == user.Id && !p.IsDeleted, ct);
         var hasEntrepreneur = await _unitOfWork.Repository<EntrepreneurProfile>().Query().AnyAsync(p => p.UserId == user.Id, ct);
+        var permissionCodes = await _permissions.GetPermissionsAsync(user.Id, ct);
+
+        var memberProfile = await _unitOfWork.Repository<MemberProfile>().Query().FirstOrDefaultAsync(p => p.UserId == user.Id, ct);
 
         return new UserDto
         {
@@ -343,16 +364,17 @@ public sealed class AuthService : IAuthService
             DisplayName = user.DisplayName,
             Email = user.Email,
             PhoneNumber = user.PhoneNumber,
+            ImageUrl = memberProfile?.ImageUrl,
             IsEmailVerified = user.IsEmailVerified,
             IsPhoneVerified = user.IsPhoneVerified,
-            IsMinor = user.IsMinor,
             HasCreatorProfile = hasCreator,
             HasEntrepreneurProfile = hasEntrepreneur,
-            Roles = roles.Select(r => r.ToString()).ToList()
+            Roles = roles.ToList(),
+            Permissions = permissionCodes.OrderBy(c => c, StringComparer.OrdinalIgnoreCase).ToList()
         };
     }
 
-    private async Task<List<RoleName>> GetRoleNamesAsync(int userId, CancellationToken ct) =>
+    private async Task<List<string>> GetRoleNamesAsync(int userId, CancellationToken ct) =>
         await _unitOfWork.Repository<UserRole>().Query()
             .Where(ur => ur.UserId == userId)
             .Select(ur => ur.Role.Name)
@@ -360,6 +382,53 @@ public sealed class AuthService : IAuthService
             .ToListAsync(ct);
 
     private static string GenerateCode() => Random.Shared.Next(100000, 999999).ToString();
+
+    private async Task DispatchVerificationAsync(User user, string purpose, string code, CancellationToken ct)
+    {
+        try
+        {
+            if (purpose == "email" && !string.IsNullOrWhiteSpace(user.Email))
+            {
+                await _email.SendAsync(new EmailMessage(
+                    user.Email!,
+                    "Your YSSE Idea Box verification code",
+                    $"<p>Your verification code is <strong>{code}</strong>. It expires in 15 minutes.</p>",
+                    $"Your verification code is {code}. It expires in 15 minutes."), ct);
+            }
+            else if (purpose == "phone" && !string.IsNullOrWhiteSpace(user.PhoneNumber))
+            {
+                await _sms.SendAsync(new SmsMessage(
+                    user.PhoneNumber!,
+                    $"Your YSSE Idea Box verification code is {code}."), ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Delivery must never fail the account operation; the user can request a new code.
+            _logger.LogWarning(ex, "Failed to deliver {Purpose} verification code for user {UserId}.", purpose, user.Id);
+        }
+    }
+
+    private async Task DispatchPasswordResetAsync(User user, string code, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            return;
+        }
+
+        try
+        {
+            await _email.SendAsync(new EmailMessage(
+                user.Email!,
+                "Reset your YSSE Idea Box password",
+                $"<p>Your password reset code is <strong>{code}</strong>. It expires in 15 minutes.</p>",
+                $"Your password reset code is {code}. It expires in 15 minutes."), ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to deliver password reset code for user {UserId}.", user.Id);
+        }
+    }
 }
 
 

@@ -7,7 +7,7 @@ import {
   useAddToWatchlist,
   useRemoveFromWatchlist,
   useRunMatching,
-} from '../hooks'
+} from '@/features/entrepreneur/hooks'
 import { IdeaCard } from '@/features/ideas/components/IdeaCard'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'

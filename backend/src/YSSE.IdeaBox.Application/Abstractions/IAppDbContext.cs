@@ -68,10 +68,7 @@ public interface IAppDbContext
     DbSet<Notification> Notifications { get; }
     DbSet<NotificationPreference> NotificationPreferences { get; }
 
-    DbSet<HelperAssistedSubmission> HelperAssistedSubmissions { get; }
-    DbSet<GuardianLink> GuardianLinks { get; }
-    DbSet<OrganizationPartner> OrganizationPartners { get; }
-    DbSet<OrganizationPartnerMember> OrganizationPartnerMembers { get; }
+    DbSet<StaticContent> StaticContents { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 

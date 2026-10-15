@@ -85,9 +85,10 @@ public sealed class MarketplaceService : IMarketplaceService
         var items = await q
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(l => new ListingDto
+.Select(l => new ListingDto
             {
                 Id = l.Id,
+                OwnerUserId = l.OwnerUserId,
                 Title = l.Title,
                 Description = l.Description,
                 Category = l.Category,
@@ -113,9 +114,10 @@ public sealed class MarketplaceService : IMarketplaceService
     {
         var listing = await _unitOfWork.Repository<MarketplaceListing>().Query()
             .Where(l => l.Id == id && !l.IsDeleted)
-            .Select(l => new ListingDto
+.Select(l => new ListingDto
             {
                 Id = l.Id,
+                OwnerUserId = l.OwnerUserId,
                 Title = l.Title,
                 Description = l.Description,
                 Category = l.Category,
@@ -152,7 +154,7 @@ public sealed class MarketplaceService : IMarketplaceService
         return listing;
     }
 
-    public async Task<Result<int>> CreateAsync(ListingCreateRequest request, CancellationToken ct = default)
+public async Task<Result<int>> CreateAsync(ListingCreateRequest request, CancellationToken ct = default)
     {
         var userId = _current.RequireUserId();
         var listing = new MarketplaceListing
@@ -173,6 +175,68 @@ public sealed class MarketplaceService : IMarketplaceService
         await _unitOfWork.Repository<MarketplaceListing>().AddAsync(listing, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<int>.Ok(listing.Id);
+    }
+
+    public async Task<Result> UpdateAsync(int id, ListingCreateRequest request, CancellationToken ct = default)
+    {
+        var userId = _current.UserId;
+        var listing = await _unitOfWork.Repository<MarketplaceListing>().Query().FirstOrDefaultAsync(l => l.Id == id && !l.IsDeleted, ct);
+        if (listing is null)
+        {
+            throw new NotFoundException("Listing not found.");
+        }
+
+        if (!_current.IsAdmin && listing.OwnerUserId != userId)
+        {
+            throw new ForbiddenException();
+        }
+
+        listing.Title = request.Title.Trim();
+        listing.Description = request.Description.Trim();
+        listing.Category = request.Category.Trim();
+        listing.Condition = request.Condition.Trim();
+        listing.PhotoUrl = request.PhotoUrl;
+        listing.ListingType = request.ListingType;
+        listing.Price = request.Price;
+        listing.CoarseLocation = request.CoarseLocation;
+        listing.UpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        if (_current.IsAuthenticated)
+        {
+            await _audit.RecordAsync("ListingUpdated", nameof(MarketplaceListing), listing.Id.ToString(),
+                null, new { listing.Title }, ct);
+        }
+
+        return Result.Ok();
+    }
+
+    public async Task<Result> DeleteAsync(int id, CancellationToken ct = default)
+    {
+        var userId = _current.UserId;
+        var listing = await _unitOfWork.Repository<MarketplaceListing>().Query().FirstOrDefaultAsync(l => l.Id == id && !l.IsDeleted, ct);
+        if (listing is null)
+        {
+            throw new NotFoundException("Listing not found.");
+        }
+
+        if (!_current.IsAdmin && listing.OwnerUserId != userId)
+        {
+            throw new ForbiddenException();
+        }
+
+        listing.IsDeleted = true;
+        listing.DeletedAt = _clock.UtcNow;
+        listing.UpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        if (_current.IsAuthenticated)
+        {
+            await _audit.RecordAsync("ListingDeleted", nameof(MarketplaceListing), listing.Id.ToString(),
+                null, new { listing.Title }, ct);
+        }
+
+        return Result.Ok();
     }
 
     public async Task<Result> UpdateStatusAsync(int id, ListingStatus status, CancellationToken ct = default)
@@ -303,9 +367,10 @@ public sealed class MarketplaceService : IMarketplaceService
             .OrderByDescending(l => l.CreatedAt)
             .Skip((p - 1) * s)
             .Take(s)
-            .Select(l => new ListingDto
+.Select(l => new ListingDto
             {
                 Id = l.Id,
+                OwnerUserId = l.OwnerUserId,
                 Title = l.Title,
                 Description = l.Description,
                 Category = l.Category,

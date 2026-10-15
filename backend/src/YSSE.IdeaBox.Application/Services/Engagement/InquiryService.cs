@@ -66,7 +66,7 @@ public sealed class InquiryService : IInquiryService
         }
 
         var dayStart = _clock.UtcNow.Date;
-        var perDayLimit = await GetIntSettingAsync("Inquiry.PerSeekerPerDayLimit", DefaultPerSeekerPerDayLimit, ct);
+        var perDayLimit = await GetIntSettingAsync("inquiry.daily.limit", DefaultPerSeekerPerDayLimit, ct);
         var sentToday = await _unitOfWork.Repository<EntrepreneurInquiry>().Query().CountAsync(
             i => i.SeekerUserId == userId && i.CreatedAt >= dayStart, ct);
         if (sentToday >= perDayLimit)
@@ -231,6 +231,62 @@ public sealed class InquiryService : IInquiryService
             "The creator responded", $"The creator of \"{idea.Title}\" responded to your inquiry.", null, ct: ct);
 
         return Result<ConversationRef>.Ok(new ConversationRef(conversation.Id));
+    }
+
+    public async Task<Result> UpdateAsync(int inquiryId, InquiryUpdateRequest request, CancellationToken ct = default)
+    {
+        var userId = _current.RequireUserId();
+        var inquiry = await _unitOfWork.Repository<EntrepreneurInquiry>().Query().FirstOrDefaultAsync(i => i.Id == inquiryId, ct);
+        if (inquiry is null)
+        {
+            throw new NotFoundException("Inquiry not found.");
+        }
+
+        if (inquiry.SeekerUserId != userId)
+        {
+            throw new ForbiddenException("Only the sender can edit this inquiry.");
+        }
+
+        if (inquiry.IsAnswered || inquiry.IsDeclined || inquiry.ConversationId is not null)
+        {
+            return Result.Fail("This inquiry can no longer be edited because it has been answered.");
+        }
+
+        inquiry.Type = request.Type;
+        inquiry.Message = request.Message;
+        inquiry.UpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result.Ok();
+    }
+
+    public async Task<Result> DeleteAsync(int inquiryId, CancellationToken ct = default)
+    {
+        var userId = _current.RequireUserId();
+        var inquiry = await _unitOfWork.Repository<EntrepreneurInquiry>().Query().FirstOrDefaultAsync(i => i.Id == inquiryId, ct);
+        if (inquiry is null)
+        {
+            throw new NotFoundException("Inquiry not found.");
+        }
+
+        var isOwner = inquiry.SeekerUserId == userId;
+        if (!isOwner && !_current.IsModeratorOrAdmin)
+        {
+            throw new ForbiddenException();
+        }
+
+        if (isOwner && !_current.IsModeratorOrAdmin && (inquiry.IsAnswered || inquiry.ConversationId is not null))
+        {
+            return Result.Fail("An answered inquiry cannot be withdrawn.");
+        }
+
+        var ideaId = inquiry.IdeaId;
+        var seekerUserId = inquiry.SeekerUserId;
+        _unitOfWork.Repository<EntrepreneurInquiry>().Remove(inquiry);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        await _audit.RecordAsync("InquiryDeleted", nameof(EntrepreneurInquiry), inquiryId.ToString(),
+            null, new { ideaId, seekerUserId }, ct);
+        return Result.Ok();
     }
 
     public async Task<PagedResult<IdeaListItemDto>> GetWatchlistAsync(int page, int pageSize, CancellationToken ct = default)

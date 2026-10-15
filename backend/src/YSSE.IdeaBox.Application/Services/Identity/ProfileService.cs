@@ -30,19 +30,22 @@ public sealed class ProfileService : IProfileService
     private readonly IDateTimeProvider _clock;
     private readonly IAuditWriter _audit;
     private readonly INotificationDispatcher _notifications;
+    private readonly IFileStorage _files;
 
     public ProfileService(
         IUnitOfWork db,
         ICurrentUserService current,
         IDateTimeProvider clock,
         IAuditWriter audit,
-        INotificationDispatcher notifications)
+        INotificationDispatcher notifications,
+        IFileStorage files)
     {
         _unitOfWork = db;
         _current = current;
         _clock = clock;
         _audit = audit;
         _notifications = notifications;
+        _files = files;
     }
 
     public async Task<MemberProfileDto?> GetMemberProfileAsync(int userId, CancellationToken ct = default)
@@ -70,12 +73,85 @@ public sealed class ProfileService : IProfileService
         profile.Biography = request.Biography;
         profile.Skills = request.Skills;
         profile.Interests = request.Interests;
-        profile.ImageUrl = request.ImageUrl;
         profile.PreferredLanguage = string.IsNullOrWhiteSpace(request.PreferredLanguage) ? "en" : request.PreferredLanguage;
         profile.UpdatedAt = _clock.UtcNow;
         await _unitOfWork.SaveChangesAsync(ct);
         return Result.Ok();
     }
+
+    public async Task<Result<string>> UploadAvatarAsync(Stream content, string fileName, string contentType, long length, CancellationToken ct = default)
+    {
+        var userId = _current.RequireUserId();
+
+        if (length <= 0)
+        {
+            return Result<string>.Fail("The selected image is empty.");
+        }
+
+        if (length > UploadLimits.MaxAvatarBytes)
+        {
+            return Result<string>.Fail($"Profile pictures must be smaller than {UploadLimits.MaxAvatarBytes / (1024 * 1024)} MB.");
+        }
+
+        // Buffer the (bounded) upload so we can validate the WebP signature before persisting.
+        using var buffer = new MemoryStream(length > 0 && length <= int.MaxValue ? (int)length : 0);
+        await content.CopyToAsync(buffer, ct);
+        var bytes = buffer.ToArray();
+
+        if (!IsWebP(bytes))
+        {
+            return Result<string>.Fail("Only WebP images are accepted.");
+        }
+
+        buffer.Position = 0;
+        var storagePath = await _files.SaveAsync(buffer, "avatar.webp", "image/webp", ct);
+
+        var profile = await _unitOfWork.Repository<MemberProfile>().Query().FirstOrDefaultAsync(p => p.UserId == userId, ct);
+        if (profile is null)
+        {
+            profile = new MemberProfile { UserId = userId, CreatedAt = _clock.UtcNow };
+            await _unitOfWork.Repository<MemberProfile>().AddAsync(profile, ct);
+        }
+
+        var previous = MediaPaths.StoragePathFromUrl(profile.ImageUrl);
+        profile.ImageUrl = MediaPaths.Url(storagePath);
+        profile.UpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        if (previous is not null)
+        {
+            await _files.DeleteAsync(previous, ct);
+        }
+
+        return Result<string>.Ok(profile.ImageUrl);
+    }
+
+    public async Task<Result> RemoveAvatarAsync(CancellationToken ct = default)
+    {
+        var userId = _current.RequireUserId();
+        var profile = await _unitOfWork.Repository<MemberProfile>().Query().FirstOrDefaultAsync(p => p.UserId == userId, ct);
+        if (profile is null || string.IsNullOrWhiteSpace(profile.ImageUrl))
+        {
+            return Result.Ok();
+        }
+
+        var previous = MediaPaths.StoragePathFromUrl(profile.ImageUrl);
+        profile.ImageUrl = null;
+        profile.UpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        if (previous is not null)
+        {
+            await _files.DeleteAsync(previous, ct);
+        }
+
+        return Result.Ok();
+    }
+
+    private static bool IsWebP(byte[] bytes) =>
+        bytes.Length >= 12
+        && bytes[0] == (byte)'R' && bytes[1] == (byte)'I' && bytes[2] == (byte)'F' && bytes[3] == (byte)'F'
+        && bytes[8] == (byte)'W' && bytes[9] == (byte)'E' && bytes[10] == (byte)'B' && bytes[11] == (byte)'P';
 
     public async Task<CreatorProfileDto?> GetMyCreatorProfileAsync(CancellationToken ct = default)
     {
@@ -270,9 +346,9 @@ public sealed class ProfileService : IProfileService
 
             var roleName = profile.Kind switch
             {
-                OpportunitySeekerKind.Investor => RoleName.Investor,
-                OpportunitySeekerKind.Mentor => RoleName.Mentor,
-                _ => RoleName.Entrepreneur
+                OpportunitySeekerKind.Investor => SystemRoles.Investor,
+                OpportunitySeekerKind.Mentor => SystemRoles.Mentor,
+                _ => SystemRoles.Entrepreneur
             };
 
             var alreadyAssigned = await _unitOfWork.Repository<UserRole>().Query().AnyAsync(

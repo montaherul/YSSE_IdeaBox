@@ -34,6 +34,34 @@ export function useCreateProject() {
   })
 }
 
+export function useUpdateProject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }) => projectsApi.updateProject(id, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      toast.success('Project updated.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
+
+export function useDeleteProject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => projectsApi.deleteProject(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      toast.success('Project deleted.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
+
 export function useProjectStatus() {
   const qc = useQueryClient()
   return useMutation({
@@ -92,11 +120,41 @@ export function useCreateProjectUpdate() {
 
 /* ---------------- Outcomes ---------------- */
 
-export function useIdeaOutcomes(ideaId, enabled = true) {
+export function useIdeaOutcomes(ideaId, params, enabled = true) {
   return useQuery({
-    queryKey: ['outcomes', 'idea', ideaId],
-    queryFn: () => outcomesApi.ideaOutcomes(ideaId),
+    queryKey: ['outcomes', 'idea', ideaId, params],
+    queryFn: () => outcomesApi.ideaOutcomes(ideaId, params),
     enabled: enabled && Boolean(ideaId),
+    placeholderData: (prev) => prev,
+  })
+}
+
+export function useUpdateOutcome() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }) => outcomesApi.update(id, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['outcomes'] })
+      toast.success('Outcome updated.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
+
+export function useDeleteOutcome() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => outcomesApi.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['outcomes'] })
+      qc.invalidateQueries({ queryKey: ['leaderboards'] })
+      toast.success('Outcome deleted.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
   })
 }
 

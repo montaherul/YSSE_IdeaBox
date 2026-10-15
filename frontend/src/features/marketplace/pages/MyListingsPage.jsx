@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Store } from 'lucide-react'
+import { Plus, Pencil, Store, Trash2 } from 'lucide-react'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
-import { useMyListings, useListingStatus, useListingReservations, useRespondReservation } from '../hooks'
+import { useMyListings, useListingStatus, useListingReservations, useRespondReservation, useDeleteListing } from '@/features/marketplace/hooks'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ErrorState } from '@/components/shared/ErrorState'
@@ -54,8 +54,10 @@ export default function MyListingsPage() {
   useDocumentTitle('My listings')
   const [page, setPage] = useState(1)
   const [pending, setPending] = useState(null)
+  const [pendingDelete, setPendingDelete] = useState(null)
   const { data, isLoading, isError, refetch } = useMyListings({ page, pageSize: DEFAULT_PAGE_SIZE })
   const changeStatus = useListingStatus()
+  const remove = useDeleteListing()
 
   const items = data?.items ?? []
   const total = data?.total ?? 0
@@ -103,7 +105,19 @@ export default function MyListingsPage() {
                       {listing.price != null ? formatCurrency(listing.price) : 'Contact for details'} · {formatDate(listing.createdAt, { short: true })}
                     </p>
                   </div>
-                  <StatusBadge status={listing.status} />
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={listing.status} />
+                    <Button asChild size="sm" variant="outline">
+                      <Link to={`/marketplace/${listing.id}/edit`}>
+                        <Pencil className="h-4 w-4" aria-hidden="true" />
+                        Edit
+                      </Link>
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setPendingDelete(listing)}>
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      Delete
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex flex-wrap gap-2">
@@ -134,6 +148,17 @@ export default function MyListingsPage() {
         variant="default"
         onConfirm={() => {
           if (pending) changeStatus.mutate({ id: pending.id, payload: { status: pending.status } })
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+        title="Delete this listing?"
+        description={pendingDelete ? `"${pendingDelete.title}" will be removed for everyone. This cannot be undone.` : ''}
+        confirmLabel="Delete listing"
+        onConfirm={() => {
+          if (pendingDelete) remove.mutate(pendingDelete.id)
         }}
       />
     </div>

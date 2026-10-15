@@ -45,6 +45,12 @@ public record ProjectCreateRequest
 
 public record ProjectStatusChangeRequest([Required] ProjectStatus Status);
 
+public record ProjectUpdateRequest
+{
+    [Required, MaxLength(200)] public string Name { get; init; } = string.Empty;
+    [MaxLength(2000)] public string? Objectives { get; init; }
+}
+
 public record ProjectMilestoneDto
 {
     public int Id { get; init; }
@@ -138,6 +144,7 @@ public record ProjectUpdateDto
 public record ListingDto
 {
     public int Id { get; init; }
+    public int OwnerUserId { get; init; }
     public string Title { get; init; } = string.Empty;
     public string Description { get; init; } = string.Empty;
     public string Category { get; init; } = string.Empty;
@@ -202,10 +209,9 @@ public record OutcomeVerifyRequest
     public bool IsPublic { get; init; }
 }
 
-// ---- Special roles ----
-public record AssistSubmissionRequest
+public record OutcomeUpdateRequest
 {
-    [Required] public int CreatorUserId { get; init; }
-    [Required, MaxLength(50)] public string ConsentMethod { get; init; } = string.Empty;
-    [Required] public IdeaCreateRequest Idea { get; init; } = new();
+    [Required] public OutcomeKind Kind { get; init; }
+    public OutcomeStatus Status { get; init; } = OutcomeStatus.AgreementReported;
+    [MaxLength(2000)] public string? Description { get; init; }
 }

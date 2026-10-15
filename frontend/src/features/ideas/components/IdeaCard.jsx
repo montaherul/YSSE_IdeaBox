@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Tag } from '@/components/shared/Tag'
 import { UserAvatar as SharedUserAvatar } from '@/components/shared/Avatar'
-import { formatCompact, timeAgo, sanitizeText } from '@/lib/format'
+import { useFormat } from '@/hooks/useFormat'
 
 const slugify = (value) =>
   String(value ?? '')
@@ -21,6 +21,7 @@ export function IdeaCard({
   showAuthor = true,
   className,
 }) {
+  const { formatCompact, timeAgo, sanitizeText } = useFormat()
   const {
     id,
     slug,

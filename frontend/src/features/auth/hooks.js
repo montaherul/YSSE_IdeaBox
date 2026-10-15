@@ -47,7 +47,7 @@ export function useRegister() {
   })
 }
 
-export function useAuthMe() {
+export function useAuthMe({ enabled = true } = {}) {
   const setUser = useAuthStore((s) => s.setUser)
   return useQuery({
     queryKey: ['auth', 'me'],
@@ -57,6 +57,7 @@ export function useAuthMe() {
       else if (data?.id || data?.roles) setUser(data)
       return data
     },
+    enabled,
     retry: false,
     staleTime: 60_000,
   })

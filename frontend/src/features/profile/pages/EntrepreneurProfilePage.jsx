@@ -2,7 +2,7 @@ import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { entrepreneurProfileSchema, toErrorMessage } from '@/lib/validation'
-import { useEntrepreneurProfile, useUpdateEntrepreneurProfile } from '../hooks'
+import { useEntrepreneurProfile, useUpdateEntrepreneurProfile } from '@/features/profile/hooks'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { PageSkeleton } from '@/components/shared/LoadingSkeleton'
 import { Card, CardContent } from '@/components/ui/card'
@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-const KINDS = ['SME', 'Startup', 'Investor', 'NGO', 'Education', 'Other']
+const KINDS = ['Entrepreneur', 'Investor', 'Mentor']
 
 export default function EntrepreneurProfilePage() {
   useDocumentTitle('Business profile')
@@ -69,9 +69,9 @@ export default function EntrepreneurProfilePage() {
         description="Tell the community what your organization does so we can match you with relevant ideas."
       />
 
-      {profile?.status && profile.status !== 'Approved' ? (
+      {profile?.isApproved === false ? (
         <p className="rounded-lg border bg-warning/10 px-4 py-3 text-sm text-warning">
-          Your profile is {profile.status}. It will be reviewed by the moderation team before you can participate fully.
+          Your profile is pending approval. It will be reviewed by the moderation team before you can participate fully.
         </p>
       ) : null}
 

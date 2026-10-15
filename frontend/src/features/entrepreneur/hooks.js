@@ -48,6 +48,34 @@ export function useRespondInquiry() {
   })
 }
 
+export function useUpdateInquiry() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }) => entrepreneurApi.updateInquiry(id, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inquiries'] })
+      toast.success('Inquiry updated.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
+
+export function useDeleteInquiry() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => entrepreneurApi.deleteInquiry(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['inquiries'] })
+      toast.success('Inquiry withdrawn.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
+
 export function useWatchlist(params) {
   return useQuery({
     queryKey: ['watchlist', params],

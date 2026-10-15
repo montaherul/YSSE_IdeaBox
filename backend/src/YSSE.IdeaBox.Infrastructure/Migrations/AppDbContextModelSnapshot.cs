@@ -477,56 +477,6 @@ namespace YSSE.IdeaBox.Infrastructure.Migrations
                     b.ToTable("entrepreneur_profiles", (string)null);
                 });
 
-            modelBuilder.Entity("YSSE.IdeaBox.Domain.Entities.GuardianLink", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("CanBlockInquiries")
-                        .HasColumnType("boolean")
-                        .HasColumnName("can_block_inquiries");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<int>("GuardianUserId")
-                        .HasColumnType("integer")
-                        .HasColumnName("guardian_user_id");
-
-                    b.Property<bool>("IsVerified")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_verified");
-
-                    b.Property<int>("MinorUserId")
-                        .HasColumnType("integer")
-                        .HasColumnName("minor_user_id");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<DateTime?>("VerifiedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("verified_at");
-
-                    b.HasKey("Id")
-                        .HasName("pk_guardian_links");
-
-                    b.HasIndex("MinorUserId")
-                        .HasDatabaseName("ix_guardian_links_minor_user_id");
-
-                    b.HasIndex("GuardianUserId", "MinorUserId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_guardian_links_guardian_user_id_minor_user_id");
-
-                    b.ToTable("guardian_links", (string)null);
-                });
-
             modelBuilder.Entity("YSSE.IdeaBox.Domain.Entities.GuestVisitor", b =>
                 {
                     b.Property<int>("Id")
@@ -575,64 +525,6 @@ namespace YSSE.IdeaBox.Infrastructure.Migrations
                         .HasDatabaseName("ix_guest_visitors_guest_id_hash");
 
                     b.ToTable("guest_visitors", (string)null);
-                });
-
-            modelBuilder.Entity("YSSE.IdeaBox.Domain.Entities.HelperAssistedSubmission", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ConsentMethod")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("consent_method");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<bool>("CreatorConfirmed")
-                        .HasColumnType("boolean")
-                        .HasColumnName("creator_confirmed");
-
-                    b.Property<DateTime?>("CreatorConfirmedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("creator_confirmed_at");
-
-                    b.Property<int>("CreatorUserId")
-                        .HasColumnType("integer")
-                        .HasColumnName("creator_user_id");
-
-                    b.Property<int>("HelperUserId")
-                        .HasColumnType("integer")
-                        .HasColumnName("helper_user_id");
-
-                    b.Property<int>("IdeaId")
-                        .HasColumnType("integer")
-                        .HasColumnName("idea_id");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("Id")
-                        .HasName("pk_helper_assisted_submissions");
-
-                    b.HasIndex("CreatorUserId")
-                        .HasDatabaseName("ix_helper_assisted_submissions_creator_user_id");
-
-                    b.HasIndex("HelperUserId")
-                        .HasDatabaseName("ix_helper_assisted_submissions_helper_user_id");
-
-                    b.HasIndex("IdeaId")
-                        .HasDatabaseName("ix_helper_assisted_submissions_idea_id");
-
-                    b.ToTable("helper_assisted_submissions", (string)null);
                 });
 
             modelBuilder.Entity("YSSE.IdeaBox.Domain.Entities.Idea", b =>
@@ -684,9 +576,17 @@ namespace YSSE.IdeaBox.Infrastructure.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("expected_timeline");
 
+                    b.Property<DateTime?>("FeaturedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("featured_at");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean")
                         .HasColumnName("is_deleted");
+
+                    b.Property<bool>("IsFeatured")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_featured");
 
                     b.Property<string>("LanguageTag")
                         .IsRequired()
@@ -776,6 +676,9 @@ namespace YSSE.IdeaBox.Infrastructure.Migrations
                     b.HasIndex("Slug")
                         .IsUnique()
                         .HasDatabaseName("ix_ideas_slug");
+
+                    b.HasIndex("IsFeatured", "Status")
+                        .HasDatabaseName("ix_ideas_is_featured_status");
 
                     b.HasIndex("Status", "PublishedAt")
                         .HasDatabaseName("ix_ideas_status_published_at");
@@ -1769,86 +1672,6 @@ namespace YSSE.IdeaBox.Infrastructure.Migrations
                     b.ToTable("opportunity_outcomes", (string)null);
                 });
 
-            modelBuilder.Entity("YSSE.IdeaBox.Domain.Entities.OrganizationPartner", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("description");
-
-                    b.Property<bool>("IsVerified")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_verified");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("name");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<DateTime?>("VerifiedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("verified_at");
-
-                    b.HasKey("Id")
-                        .HasName("pk_organization_partners");
-
-                    b.ToTable("organization_partners", (string)null);
-                });
-
-            modelBuilder.Entity("YSSE.IdeaBox.Domain.Entities.OrganizationPartnerMember", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<int>("OrganizationPartnerId")
-                        .HasColumnType("integer")
-                        .HasColumnName("organization_partner_id");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_organization_partner_members");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("ix_organization_partner_members_user_id");
-
-                    b.HasIndex("OrganizationPartnerId", "UserId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_organization_partner_members_organization_partner_id_user_id");
-
-                    b.ToTable("organization_partner_members", (string)null);
-                });
-
             modelBuilder.Entity("YSSE.IdeaBox.Domain.Entities.Permission", b =>
                 {
                     b.Property<int>("Id")
@@ -2550,8 +2373,10 @@ namespace YSSE.IdeaBox.Infrastructure.Migrations
                         .HasColumnType("character varying(256)")
                         .HasColumnName("description");
 
-                    b.Property<int>("Name")
-                        .HasColumnType("integer")
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("name");
 
                     b.Property<DateTime?>("UpdatedAt")
@@ -2604,6 +2429,62 @@ namespace YSSE.IdeaBox.Infrastructure.Migrations
                         .HasDatabaseName("ix_role_permissions_role_id_permission_id");
 
                     b.ToTable("role_permissions", (string)null);
+                });
+
+            modelBuilder.Entity("YSSE.IdeaBox.Domain.Entities.StaticContent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("content");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("key");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_static_contents");
+
+                    b.HasIndex("Key")
+                        .IsUnique()
+                        .HasDatabaseName("ix_static_contents_key");
+
+                    b.ToTable("static_contents", (string)null);
                 });
 
             modelBuilder.Entity("YSSE.IdeaBox.Domain.Entities.Tag", b =>
@@ -2680,10 +2561,6 @@ namespace YSSE.IdeaBox.Infrastructure.Migrations
                     b.Property<bool>("IsEmailVerified")
                         .HasColumnType("boolean")
                         .HasColumnName("is_email_verified");
-
-                    b.Property<bool>("IsMinor")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_minor");
 
                     b.Property<bool>("IsPendingDeletion")
                         .HasColumnType("boolean")
@@ -3002,47 +2879,6 @@ namespace YSSE.IdeaBox.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("YSSE.IdeaBox.Domain.Entities.GuardianLink", b =>
-                {
-                    b.HasOne("YSSE.IdeaBox.Domain.Entities.User", null)
-                        .WithMany()
-                        .HasForeignKey("GuardianUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_guardian_links_users_guardian_user_id");
-
-                    b.HasOne("YSSE.IdeaBox.Domain.Entities.User", null)
-                        .WithMany()
-                        .HasForeignKey("MinorUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_guardian_links_users_minor_user_id");
-                });
-
-            modelBuilder.Entity("YSSE.IdeaBox.Domain.Entities.HelperAssistedSubmission", b =>
-                {
-                    b.HasOne("YSSE.IdeaBox.Domain.Entities.User", null)
-                        .WithMany()
-                        .HasForeignKey("CreatorUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_helper_assisted_submissions_users_creator_user_id");
-
-                    b.HasOne("YSSE.IdeaBox.Domain.Entities.User", null)
-                        .WithMany()
-                        .HasForeignKey("HelperUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_helper_assisted_submissions_users_helper_user_id");
-
-                    b.HasOne("YSSE.IdeaBox.Domain.Entities.Idea", null)
-                        .WithMany()
-                        .HasForeignKey("IdeaId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_helper_assisted_submissions_ideas_idea_id");
-                });
-
             modelBuilder.Entity("YSSE.IdeaBox.Domain.Entities.Idea", b =>
                 {
                     b.HasOne("YSSE.IdeaBox.Domain.Entities.Category", "Category")
@@ -3321,25 +3157,6 @@ namespace YSSE.IdeaBox.Infrastructure.Migrations
                         .HasConstraintName("fk_opportunity_outcomes_users_verified_by_user_id");
 
                     b.Navigation("Idea");
-                });
-
-            modelBuilder.Entity("YSSE.IdeaBox.Domain.Entities.OrganizationPartnerMember", b =>
-                {
-                    b.HasOne("YSSE.IdeaBox.Domain.Entities.OrganizationPartner", "OrganizationPartner")
-                        .WithMany("Members")
-                        .HasForeignKey("OrganizationPartnerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_organization_partner_members_organization_partners_organiza");
-
-                    b.HasOne("YSSE.IdeaBox.Domain.Entities.User", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_organization_partner_members_users_user_id");
-
-                    b.Navigation("OrganizationPartner");
                 });
 
             modelBuilder.Entity("YSSE.IdeaBox.Domain.Entities.ProblemEndorsement", b =>
@@ -3641,11 +3458,6 @@ namespace YSSE.IdeaBox.Infrastructure.Migrations
             modelBuilder.Entity("YSSE.IdeaBox.Domain.Entities.Message", b =>
                 {
                     b.Navigation("Attachments");
-                });
-
-            modelBuilder.Entity("YSSE.IdeaBox.Domain.Entities.OrganizationPartner", b =>
-                {
-                    b.Navigation("Members");
                 });
 
             modelBuilder.Entity("YSSE.IdeaBox.Domain.Entities.Permission", b =>

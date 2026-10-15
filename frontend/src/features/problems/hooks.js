@@ -32,6 +32,34 @@ export function useCreateProblem() {
   })
 }
 
+export function useUpdateProblem() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }) => problemsApi.update(id, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['problems'] })
+      toast.success('Problem updated.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
+
+export function useDeleteProblem() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => problemsApi.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['problems'] })
+      toast.success('Problem deleted.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
+
 export function useEndorseProblem() {
   const qc = useQueryClient()
   return useMutation({

@@ -122,11 +122,23 @@ public sealed class ProjectService : IProjectService
             throw new NotFoundException("Idea not found.");
         }
 
+        if (!_current.IsAdmin &&
+            idea.Status is IdeaStatus.Draft or IdeaStatus.Rejected or IdeaStatus.Withdrawn
+                or IdeaStatus.Archived or IdeaStatus.RevisionRequired)
+        {
+            return Result<int>.Fail("Projects can only be started from a live or approved idea.");
+        }
+
         var isCreator = idea.CreatorUserId == userId;
         var isSeeker = await _unitOfWork.Repository<EntrepreneurInquiry>().Query().AnyAsync(i => i.IdeaId == idea.Id && i.SeekerUserId == userId, ct);
         if (!isCreator && !isSeeker && !_current.IsAdmin)
         {
             throw new ForbiddenException("Only participants can create a project for this idea.");
+        }
+
+        if (!_current.IsAdmin && !_current.IsInRole(SystemRoles.Entrepreneur) && !_current.IsInRole(SystemRoles.Investor))
+        {
+            throw new ForbiddenException("Only the idea creator, an entrepreneur or an investor can start a project.");
         }
 
         var project = new Project
@@ -150,7 +162,53 @@ public sealed class ProjectService : IProjectService
         }, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 
+        await _audit.RecordAsync("ProjectCreated", nameof(Project), project.Id.ToString(), null, new { project.Name }, ct);
+
         return Result<int>.Ok(project.Id);
+    }
+
+    public async Task<Result> UpdateAsync(int id, ProjectUpdateRequest request, CancellationToken ct = default)
+    {
+        var userId = _current.RequireUserId();
+        var project = await _unitOfWork.Repository<Project>().Query().FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted, ct);
+        if (project is null)
+        {
+            throw new NotFoundException("Project not found.");
+        }
+
+        await RequireMemberAsync(project.Id, userId, ct);
+
+        project.Name = request.Name.Trim();
+        project.Objectives = request.Objectives;
+        project.UpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        await _audit.RecordAsync("ProjectUpdated", nameof(Project), project.Id.ToString(), null, new { project.Name }, ct);
+        return Result.Ok();
+    }
+
+    public async Task<Result> DeleteAsync(int id, CancellationToken ct = default)
+    {
+        var userId = _current.RequireUserId();
+        var project = await _unitOfWork.Repository<Project>().Query().FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted, ct);
+        if (project is null)
+        {
+            throw new NotFoundException("Project not found.");
+        }
+
+        // Only the project lead or a platform administrator may delete a project.
+        if (project.LeadUserId != userId && !_current.IsAdmin)
+        {
+            throw new ForbiddenException("Only the project lead can delete this project.");
+        }
+
+        project.IsDeleted = true;
+        project.DeletedAt = _clock.UtcNow;
+        project.UpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        await _audit.RecordAsync("ProjectDeleted", nameof(Project), project.Id.ToString(), null, new { project.Name }, ct);
+        return Result.Ok();
     }
 
     public async Task<Result> ChangeStatusAsync(int id, ProjectStatusChangeRequest request, CancellationToken ct = default)

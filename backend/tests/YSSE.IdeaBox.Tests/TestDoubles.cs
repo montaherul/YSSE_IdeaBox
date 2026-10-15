@@ -10,9 +10,9 @@ internal sealed class FakeCurrentUser : ICurrentUserService
 
     public bool IsAuthenticated => UserId is not null;
 
-    public IReadOnlyCollection<RoleName> Roles { get; init; } = Array.Empty<RoleName>();
+    public IReadOnlyCollection<string> Roles { get; init; } = Array.Empty<string>();
 
-    public bool IsInRole(RoleName role) => Roles.Contains(role);
+    public bool IsInRole(string role) => Roles.Contains(role);
 
     public bool IsModeratorOrAdmin => IsAdmin;
 
@@ -47,15 +47,41 @@ internal sealed class NoOpNotificationDispatcher : INotificationDispatcher
         Task.CompletedTask;
 }
 
-/// <summary>Guards against accidental Dapper/raw-SQL execution inside data-driven unit tests.</summary>
-internal sealed class ThrowingSqlQueryExecutor : ISqlQueryExecutor
+/// <summary>In-memory file storage double that records saves and supports read/delete round-trips.</summary>
+internal sealed class FakeFileStorage : IFileStorage
 {
-    public Task<IReadOnlyList<T>> QueryAsync<T>(string sql, object? parameters = null, CancellationToken ct = default) =>
-        throw new InvalidOperationException("Raw SQL execution is not available in unit tests.");
+    private readonly Dictionary<string, byte[]> _files = new(StringComparer.OrdinalIgnoreCase);
+    private int _counter;
 
-    public Task<T?> QuerySingleAsync<T>(string sql, object? parameters = null, CancellationToken ct = default) =>
-        throw new InvalidOperationException("Raw SQL execution is not available in unit tests.");
+    public Task<string> SaveAsync(Stream content, string fileName, string contentType, CancellationToken ct = default)
+    {
+        using var buffer = new MemoryStream();
+        content.CopyTo(buffer);
+        var path = $"file-{++_counter}{Path.GetExtension(fileName)}";
+        _files[path] = buffer.ToArray();
+        return Task.FromResult(path);
+    }
 
-    public Task<int> ExecuteAsync(string sql, object? parameters = null, CancellationToken ct = default) =>
-        throw new InvalidOperationException("Raw SQL execution is not available in unit tests.");
+    public Task<Stream?> OpenReadAsync(string storagePath, CancellationToken ct = default)
+    {
+        Stream? stream = _files.TryGetValue(storagePath, out var bytes)
+            ? new MemoryStream(bytes)
+            : null;
+        return Task.FromResult(stream);
+    }
+
+    public Task DeleteAsync(string storagePath, CancellationToken ct = default)
+    {
+        _files.Remove(storagePath);
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>Permission set double; tests grant exactly the codes they need.</summary>
+internal sealed class FakeUserPermissionService : IUserPermissionService
+{
+    public IReadOnlySet<string> Permissions { get; init; } = new HashSet<string>();
+
+    public Task<IReadOnlySet<string>> GetPermissionsAsync(int userId, CancellationToken ct = default) =>
+        Task.FromResult(Permissions);
 }

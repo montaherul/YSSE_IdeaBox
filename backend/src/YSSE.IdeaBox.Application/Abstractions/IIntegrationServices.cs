@@ -37,3 +37,36 @@ public interface IFileStorage
 
     Task DeleteAsync(string storagePath, CancellationToken ct = default);
 }
+
+/// <summary>Outbound transactional email (account verification, password reset, notices).</summary>
+public record EmailMessage(string To, string Subject, string HtmlBody, string? TextBody = null);
+
+/// <summary>Outbound transactional SMS (account verification codes, notices).</summary>
+public record SmsMessage(string To, string Body);
+
+/// <summary>
+/// Delivers transactional email. Implementations must never log message bodies or
+/// credentials, and must degrade safely to a no-op when not configured.
+/// </summary>
+public interface IEmailSender
+{
+    Task SendAsync(EmailMessage message, CancellationToken ct = default);
+}
+
+/// <summary>
+/// Delivers transactional SMS. Implementations must never log message bodies or
+/// credentials, and must degrade safely to a no-op when not configured.
+/// </summary>
+public interface ISmsSender
+{
+    Task SendAsync(SmsMessage message, CancellationToken ct = default);
+}
+
+/// <summary>
+/// Pushes a real-time event to a single user (SignalR group) so the SPA can update
+/// without polling. Implemented in the API host; safe no-op when no connections exist.
+/// </summary>
+public interface IRealtimeNotifier
+{
+    Task NotifyUserAsync(int userId, string eventName, object payload, CancellationToken ct = default);
+}

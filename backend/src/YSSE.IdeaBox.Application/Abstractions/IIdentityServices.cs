@@ -9,9 +9,9 @@ public interface ICurrentUserService
 
     bool IsAuthenticated { get; }
 
-    IReadOnlyCollection<RoleName> Roles { get; }
+    IReadOnlyCollection<string> Roles { get; }
 
-    bool IsInRole(RoleName role);
+    bool IsInRole(string role);
 
     bool IsModeratorOrAdmin { get; }
 
@@ -39,7 +39,7 @@ public interface ITokenService
     int? ValidateRefreshToken(string refreshToken);
 }
 
-public record UserTokenInfo(int UserId, string DisplayName, string? Email, IReadOnlyCollection<RoleName> Roles);
+public record UserTokenInfo(int UserId, string DisplayName, string? Email, IReadOnlyCollection<string> Roles);
 
 public interface IDateTimeProvider
 {

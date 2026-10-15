@@ -1,19 +1,36 @@
 namespace YSSE.IdeaBox.Domain.Enums;
 
-public enum RoleName
+/// <summary>
+/// Canonical names of the platform's built-in roles. Roles are stored as free-form
+/// strings, but these names are depended on by authorization logic (moderation,
+/// screening) and are therefore protected from rename/delete.
+/// Administrators may create additional custom roles beyond this set.
+/// </summary>
+public static class SystemRoles
 {
-    Member = 1,
-    Creator = 2,
-    Entrepreneur = 3,
-    Investor = 4,
-    Mentor = 5,
-    Moderator = 6,
-    ScreeningReviewer = 7,
-    Administrator = 8,
-    IdeaHelper = 9,
-    OrganizationPartner = 10,
-    Guardian = 11,
-    LanguageEditor = 12
+    public const string Member = "Member";
+    public const string Creator = "Creator";
+    public const string Entrepreneur = "Entrepreneur";
+    public const string Investor = "Investor";
+    public const string Mentor = "Mentor";
+    public const string Moderator = "Moderator";
+    public const string ScreeningReviewer = "ScreeningReviewer";
+    public const string Administrator = "Administrator";
+
+    /// <summary>All built-in roles, in their original seed order.</summary>
+    public static readonly string[] All =
+    {
+        Member, Creator, Entrepreneur, Investor, Mentor, Moderator,
+        ScreeningReviewer, Administrator
+    };
+
+    /// <summary>
+    /// True for the built-in roles whose names authorization logic depends on. These are
+    /// created at startup and cannot be renamed or deleted (their description and permission
+    /// grants remain editable). Custom roles are not system roles and support full CRUD.
+    /// </summary>
+    public static bool IsSystemRole(string? name) =>
+        !string.IsNullOrWhiteSpace(name) && All.Contains(name, StringComparer.OrdinalIgnoreCase);
 }
 
 public enum IdeaStatus

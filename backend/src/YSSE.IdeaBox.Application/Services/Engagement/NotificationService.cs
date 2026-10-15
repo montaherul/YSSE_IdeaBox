@@ -79,6 +79,25 @@ public sealed class NotificationService : INotificationService
         return Result.Ok();
     }
 
+    public async Task<Result> DeleteAsync(int id, CancellationToken ct = default)
+    {
+        var userId = _current.RequireUserId();
+        var notification = await _unitOfWork.Repository<Notification>().Query().FirstOrDefaultAsync(n => n.Id == id, ct);
+        if (notification is null)
+        {
+            throw new NotFoundException("Notification not found.");
+        }
+
+        if (notification.UserId != userId && !_current.IsModeratorOrAdmin)
+        {
+            throw new ForbiddenException();
+        }
+
+        _unitOfWork.Repository<Notification>().Remove(notification);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result.Ok();
+    }
+
     public async Task<IReadOnlyList<NotificationPreferenceDto>> GetPreferencesAsync(CancellationToken ct = default)
     {
         var userId = _current.RequireUserId();

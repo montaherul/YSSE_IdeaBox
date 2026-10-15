@@ -106,11 +106,12 @@ export function useModerateReview(ideaId) {
 
 /* ---------------- Comments ---------------- */
 
-export function useIdeaComments(ideaId) {
+export function useIdeaComments(ideaId, params) {
   return useQuery({
-    queryKey: ['comments', ideaId],
-    queryFn: () => reviewsApi.comments(ideaId),
+    queryKey: ['comments', ideaId, params],
+    queryFn: () => reviewsApi.comments(ideaId, params),
     enabled: Boolean(ideaId),
+    placeholderData: (prev) => prev,
   })
 }
 
@@ -121,6 +122,20 @@ export function useCreateComment(ideaId) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['comments', ideaId] })
       toast.success('Comment posted.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
+
+export function useUpdateComment(ideaId) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }) => reviewsApi.updateComment(id, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['comments', ideaId] })
+      toast.success('Comment updated.')
     },
     onError: (e) => {
       if (!e?.status) toast.error(toErrorMessage(e))

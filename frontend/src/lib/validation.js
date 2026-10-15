@@ -170,7 +170,6 @@ export const memberProfileSchema = z.object({
   biography: optionalText(1000, 'Biography'),
   skills: optionalText(500, 'Skills'),
   interests: optionalText(500, 'Interests'),
-  imageUrl: optionalText(500, 'Image URL'),
   preferredLanguage: z.string().max(8).default('en'),
 })
 
@@ -264,6 +263,11 @@ export const reservationSchema = z.object({
 
 export const projectSchema = z.object({
   ideaId: z.coerce.number().int().positive(),
+  name: requiredText(3, 200, 'Project name'),
+  objectives: optionalText(2000, 'Objectives'),
+})
+
+export const projectEditSchema = z.object({
   name: requiredText(3, 200, 'Project name'),
   objectives: optionalText(2000, 'Objectives'),
 })

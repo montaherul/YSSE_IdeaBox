@@ -43,6 +43,12 @@ public record MessageSendRequest
     public string? IdempotencyKey { get; init; }
 }
 
+public record MessageUpdateRequest
+{
+    [Required, MinLength(1), MaxLength(4000)]
+    public string Body { get; init; } = string.Empty;
+}
+
 public record StartConversationRequest([Required] int IdeaId);
 
 public record ReportCreateRequest
@@ -71,4 +77,11 @@ public record ReportResolveRequest
 {
     [Required] public ReportStatus Status { get; init; }
     [MaxLength(1000)] public string? Resolution { get; init; }
+}
+
+public record ReportUpdateRequest
+{
+    [Required, MaxLength(500)] public string Reason { get; init; } = string.Empty;
+    [MaxLength(2000)] public string? Details { get; init; }
+    [Required] public ReportStatus Status { get; init; }
 }

@@ -24,6 +24,17 @@ public interface IIdeaService
 
     Task<Result> DeleteDraftAsync(int id, CancellationToken ct = default);
 
+    Task<Result> SetFeaturedAsync(int id, bool featured, CancellationToken ct = default);
+
+    /// <summary>Uploads/replaces the single private PDF holding the full idea description (owner only).</summary>
+    Task<Result<IdeaAttachmentDto>> UploadAttachmentAsync(int ideaId, Stream content, string fileName, string contentType, long length, CancellationToken ct = default);
+
+    /// <summary>Removes the idea's private attachment (owner only).</summary>
+    Task<Result> RemoveAttachmentAsync(int ideaId, CancellationToken ct = default);
+
+    /// <summary>Opens the attachment for download when the caller owns it or holds the read permission.</summary>
+    Task<IdeaAttachmentDownload?> OpenAttachmentAsync(int ideaId, CancellationToken ct = default);
+
     Task<PagedResult<IdeaListItemDto>> GetMyIdeasAsync(IdeaListQuery query, CancellationToken ct = default);
 
     Task<IReadOnlyList<IdeaListItemDto>> GetSimilarAsync(int id, int take = 5, CancellationToken ct = default);
@@ -44,9 +55,11 @@ public interface IScreeningService
 
 public interface ICommentService
 {
-    Task<IReadOnlyList<CommentDto>> GetCommentsAsync(int ideaId, CancellationToken ct = default);
+    Task<PagedResult<CommentDto>> GetCommentsAsync(int ideaId, int page, int pageSize, CancellationToken ct = default);
 
     Task<Result<CommentDto>> AddCommentAsync(int ideaId, CommentCreateRequest request, CancellationToken ct = default);
+
+    Task<Result> UpdateCommentAsync(int commentId, CommentUpdateRequest request, CancellationToken ct = default);
 
     Task<Result> DeleteCommentAsync(int commentId, CancellationToken ct = default);
 
@@ -66,6 +79,10 @@ public interface IProblemService
     Task<ProblemPostDto?> GetByIdAsync(int id, CancellationToken ct = default);
 
     Task<Result<int>> CreateAsync(ProblemPostCreateRequest request, CancellationToken ct = default);
+
+    Task<Result> UpdateAsync(int id, ProblemPostCreateRequest request, CancellationToken ct = default);
+
+    Task<Result> DeleteAsync(int id, CancellationToken ct = default);
 
     Task<Result> EndorseAsync(int id, CancellationToken ct = default);
 

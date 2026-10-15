@@ -2,6 +2,44 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { profileApi } from './api'
 import { toErrorMessage } from '@/lib/validation'
+import { useAuthStore } from '@/store/auth-store'
+
+function applyAvatarToAuthStore(imageUrl) {
+  const { user, setUser } = useAuthStore.getState()
+  if (user) setUser({ ...user, imageUrl: imageUrl ?? null })
+}
+
+export function useUploadAvatar() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file) => profileApi.uploadAvatar(file),
+    onSuccess: (imageUrl) => {
+      applyAvatarToAuthStore(imageUrl)
+      qc.invalidateQueries({ queryKey: ['profiles', 'member'] })
+      qc.invalidateQueries({ queryKey: ['auth', 'me'] })
+      toast.success('Profile picture updated.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
+
+export function useRemoveAvatar() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => profileApi.removeAvatar(),
+    onSuccess: () => {
+      applyAvatarToAuthStore(null)
+      qc.invalidateQueries({ queryKey: ['profiles', 'member'] })
+      qc.invalidateQueries({ queryKey: ['auth', 'me'] })
+      toast.success('Profile picture removed.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
 
 export function useMemberProfile(enabled = true) {
   return useQuery({

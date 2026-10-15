@@ -17,6 +17,7 @@ internal static class IdeaProjections
         CategoryName = x.Category != null ? x.Category.Name : string.Empty,
         Stage = x.Stage,
         Status = x.Status,
+        IsFeatured = x.IsFeatured,
         IsAnonymous = x.Attribution == IdeaAttribution.Anonymous,
         CreatorAlias = x.Attribution == IdeaAttribution.Anonymous
             ? null
@@ -31,7 +32,13 @@ internal static class IdeaProjections
         Tags = x.IdeaTags.Select(t => t.Tag.Name).ToList()
     };
 
-    public static Expression<Func<Idea, IdeaDetailDto>> Detail(int? currentUserId) => x => new IdeaDetailDto
+    /// <summary>
+    /// Detail projection. Attachments are private: they are only materialized for the
+    /// idea's owner (<paramref name="currentUserId"/>) or when the caller holds the
+    /// attachment read permission (<paramref name="includeAllAttachments"/>). Pass 0
+    /// when there is no authenticated caller.
+    /// </summary>
+    public static Expression<Func<Idea, IdeaDetailDto>> Detail(int currentUserId, bool includeAllAttachments) => x => new IdeaDetailDto
     {
         Id = x.Id,
         Slug = x.Slug,
@@ -40,6 +47,7 @@ internal static class IdeaProjections
         CategoryName = x.Category != null ? x.Category.Name : string.Empty,
         Stage = x.Stage,
         Status = x.Status,
+        IsFeatured = x.IsFeatured,
         IsAnonymous = x.Attribution == IdeaAttribution.Anonymous,
         CreatorAlias = x.Attribution == IdeaAttribution.Anonymous
             ? null
@@ -63,15 +71,17 @@ internal static class IdeaProjections
         SuccessMetrics = x.SuccessMetrics,
         CollaborationPreferences = x.CollaborationPreferences,
         ViewsCount = x.ViewsCount,
-        CanEdit = currentUserId != null && x.CreatorUserId == currentUserId &&
+        CanEdit = currentUserId != 0 && x.CreatorUserId == currentUserId &&
                   (x.Status == IdeaStatus.Draft || x.Status == IdeaStatus.RevisionRequired),
-        Attachments = x.Attachments.Where(a => !a.IsDeleted).Select(a => new IdeaAttachmentDto
-        {
-            Id = a.Id,
-            FileName = a.FileName,
-            ContentType = a.ContentType,
-            SizeBytes = a.SizeBytes
-        }).ToList(),
+        Attachments = x.Attachments
+            .Where(a => !a.IsDeleted && (includeAllAttachments || x.CreatorUserId == currentUserId))
+            .Select(a => new IdeaAttachmentDto
+            {
+                Id = a.Id,
+                FileName = a.FileName,
+                ContentType = a.ContentType,
+                SizeBytes = a.SizeBytes
+            }).ToList(),
         StatusHistory = x.StatusHistory.Select(h => new IdeaStatusHistoryDto
         {
             FromStatus = h.FromStatus,

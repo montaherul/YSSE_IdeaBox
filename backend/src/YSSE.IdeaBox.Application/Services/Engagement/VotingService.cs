@@ -207,7 +207,7 @@ public sealed class VotingService : IVotingService
         return Result<int>.Ok(period.Id);
     }
 
-    public async Task<Result> SetPeriodActiveAsync(int id, bool active, CancellationToken ct = default)
+public async Task<Result> SetPeriodActiveAsync(int id, bool active, CancellationToken ct = default)
     {
         if (!_current.IsAdmin)
         {
@@ -231,6 +231,66 @@ public sealed class VotingService : IVotingService
 
         await _audit.RecordAsync("VotingPeriodActiveChanged", nameof(VotingPeriod), period.Id.ToString(),
             null, new { active }, ct);
+        return Result.Ok();
+    }
+
+    public async Task<Result> UpdatePeriodAsync(int id, VotingPeriodCreateRequest request, CancellationToken ct = default)
+    {
+        if (!_current.IsAdmin)
+        {
+            throw new ForbiddenException();
+        }
+
+        var period = await _unitOfWork.Repository<VotingPeriod>().Query().FirstOrDefaultAsync(vp => vp.Id == id, ct);
+        if (period is null)
+        {
+            throw new NotFoundException("Voting period not found.");
+        }
+
+        if (request.EndAt <= request.StartAt)
+        {
+            return Result.Fail("The period must end after it starts.");
+        }
+
+        period.Name = request.Name.Trim();
+        period.StartAt = request.StartAt;
+        period.EndAt = request.EndAt;
+        period.Visibility = request.Visibility;
+        period.MinimumAccountAgeDays = request.MinimumAccountAgeDays;
+        period.RequiresVerifiedAccount = request.RequiresVerifiedAccount;
+        period.IsActive = request.IsActive;
+        period.UpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        await _audit.RecordAsync("VotingPeriodUpdated", nameof(VotingPeriod), period.Id.ToString(),
+            null, new { period.Name, period.StartAt, period.EndAt }, ct);
+        return Result.Ok();
+    }
+
+    public async Task<Result> DeletePeriodAsync(int id, CancellationToken ct = default)
+    {
+        if (!_current.IsAdmin)
+        {
+            throw new ForbiddenException();
+        }
+
+        var period = await _unitOfWork.Repository<VotingPeriod>().Query().FirstOrDefaultAsync(vp => vp.Id == id, ct);
+        if (period is null)
+        {
+            throw new NotFoundException("Voting period not found.");
+        }
+
+        var hasVotes = await _unitOfWork.Repository<IdeaVote>().Query().AnyAsync(v => v.VotingPeriodId == id && !v.IsDeleted, ct);
+        if (hasVotes)
+        {
+            return Result.Fail("This voting period has recorded votes and cannot be deleted.");
+        }
+
+        _unitOfWork.Repository<VotingPeriod>().Remove(period);
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        await _audit.RecordAsync("VotingPeriodDeleted", nameof(VotingPeriod), period.Id.ToString(),
+            null, new { period.Name }, ct);
         return Result.Ok();
     }
 

@@ -26,8 +26,6 @@ public class User : BaseEntity, ISoftDeletable
 
     public string? SuspensionReason { get; set; }
 
-    public bool IsMinor { get; set; }
-
     public bool IsPendingDeletion { get; set; }
 
     public DateTime? LastLoginAt { get; set; }
@@ -45,10 +43,10 @@ public class User : BaseEntity, ISoftDeletable
     public EntrepreneurProfile? EntrepreneurProfile { get; set; }
 }
 
-/// <summary>RBAC role (Section 4.1). Seeded, not user-created.</summary>
+/// <summary>RBAC role. Built-in roles are seeded; additional custom roles may be created by admins.</summary>
 public class Role : BaseEntity
 {
-    public RoleName Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 
     public string Description { get; set; } = string.Empty;
 

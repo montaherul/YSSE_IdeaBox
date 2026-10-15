@@ -1,8 +1,8 @@
+import { lazy, Suspense } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { Lightbulb } from 'lucide-react'
-import { useLogin } from '../hooks'
+import { useLogin } from '@/features/auth/hooks'
 import { loginSchema, toErrorMessage } from '@/lib/validation'
 import { useAuth } from '@/hooks/useAuth'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
@@ -11,6 +11,12 @@ import { Input } from '@/components/ui/input'
 import { FormField } from '@/components/ui/form-field'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { APP_NAME } from '@/config/constants'
+import { Logo } from '@/components/shared/Logo'
+
+// Dev-only demo role picker; the dynamic import is dead-code-eliminated in production builds.
+const DemoRoleLogins = import.meta.env.DEV
+  ? lazy(() => import('@/features/auth/components/DemoRoleLogins'))
+  : null
 
 export default function LoginPage() {
   useDocumentTitle('Sign in')
@@ -51,9 +57,7 @@ export default function LoginPage() {
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-6">
       <div className="flex flex-col items-center gap-2 text-center">
-        <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <Lightbulb className="h-6 w-6" aria-hidden="true" />
-        </span>
+        <Logo size="lg" />
         <h1 className="text-2xl font-bold">Welcome back to {APP_NAME}</h1>
         <p className="text-sm text-muted-foreground">
           Sign in to manage your ideas, reviews and conversations.
@@ -112,6 +116,12 @@ export default function LoginPage() {
           </p>
         </CardContent>
       </Card>
+
+      {DemoRoleLogins ? (
+        <Suspense fallback={null}>
+          <DemoRoleLogins onSignIn={() => navigate(from, { replace: true })} />
+        </Suspense>
+      ) : null}
 
       <p className="text-center text-xs text-muted-foreground">
         Guests can browse and review one idea anonymously without an account.

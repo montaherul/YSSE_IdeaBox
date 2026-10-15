@@ -5,6 +5,8 @@ export const entrepreneurApi = {
   inquiriesReceived: (params) => api.getPaged('/inquiries/received', { params }),
   inquiriesSent: (params) => api.getPaged('/inquiries/sent', { params }),
   respondInquiry: (id, payload) => api.post(`/inquiries/${id}/respond`, payload),
+  updateInquiry: (id, payload) => api.put(`/inquiries/${id}`, payload),
+  deleteInquiry: (id) => api.delete(`/inquiries/${id}`),
 
   watchlist: (params) => api.getPaged('/watchlist', { params }),
   addToWatchlist: (ideaId) => api.post(`/watchlist/${ideaId}`),

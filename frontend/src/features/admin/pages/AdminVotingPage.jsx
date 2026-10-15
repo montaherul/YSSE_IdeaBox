@@ -1,15 +1,17 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Play, Plus, Trophy, X } from 'lucide-react'
+import { Megaphone, Play, Plus, Pencil, Trash2, Trophy, X } from 'lucide-react'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
+import { usePermission } from '@/hooks/usePermission'
 import { votingPeriodSchema, toErrorMessage } from '@/lib/validation'
-import { useVotingPeriods, useCreateVotingPeriod, useActivateVotingPeriod, useCloseVotingPeriod } from '@/features/voting/hooks'
+import { useVotingPeriods, useCreateVotingPeriod, useUpdateVotingPeriod, useDeleteVotingPeriod, useActivateVotingPeriod, useCloseVotingPeriod, useAnnounceMonthlyTop } from '@/features/voting/hooks'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { CardSkeleton } from '@/components/shared/LoadingSkeleton'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FormField } from '@/components/ui/form-field'
@@ -23,16 +25,39 @@ import {
 } from '@/components/ui/dialog'
 import { formatDate } from '@/lib/format'
 
-function CreatePeriodDialog({ onClose }) {
+function toLocalInput(date) {
+  if (!date) return ''
+  const d = new Date(date)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function PeriodDialog({ period, onClose }) {
+  const isEdit = Boolean(period)
   const create = useCreateVotingPeriod()
+  const update = useUpdateVotingPeriod()
+  const submit = isEdit ? update : create
   const form = useForm({
     resolver: zodResolver(votingPeriodSchema),
-    defaultValues: { name: '', startAt: '', endAt: '', visibility: 'HiddenUntilClose', minimumAccountAgeDays: 7, isActive: true },
+    defaultValues: period
+      ? {
+          name: period.name ?? '',
+          startAt: toLocalInput(period.startAt),
+          endAt: toLocalInput(period.endAt),
+          visibility: period.visibility ?? 'HiddenUntilClose',
+          minimumAccountAgeDays: period.minimumAccountAgeDays ?? 7,
+          isActive: period.isActive ?? true,
+        }
+      : { name: '', startAt: '', endAt: '', visibility: 'HiddenUntilClose', minimumAccountAgeDays: 7, isActive: true },
   })
 
   const onSubmit = async (values) => {
     try {
-      await create.mutateAsync(values)
+      if (isEdit) {
+        await update.mutateAsync({ id: period.id, payload: values })
+      } else {
+        await create.mutateAsync(values)
+      }
       onClose()
     } catch (err) {
       form.setError('root', { message: toErrorMessage(err) })
@@ -43,7 +68,7 @@ function CreatePeriodDialog({ onClose }) {
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle id="voting-period-title">New voting period</DialogTitle>
+          <DialogTitle id="voting-period-title">{isEdit ? 'Edit voting period' : 'New voting period'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
           {form.formState.errors.root ? (
@@ -62,7 +87,7 @@ function CreatePeriodDialog({ onClose }) {
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit" disabled={create.isPending}>Create</Button>
+            <Button type="submit" disabled={submit.isPending}>{isEdit ? 'Save' : 'Create'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -72,10 +97,14 @@ function CreatePeriodDialog({ onClose }) {
 
 export default function AdminVotingPage() {
   useDocumentTitle('Voting periods')
-  const [creating, setCreating] = useState(false)
+  const [dialog, setDialog] = useState(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(null)
   const { data, isLoading, isError, refetch } = useVotingPeriods()
   const activate = useActivateVotingPeriod()
   const close = useCloseVotingPeriod()
+  const remove = useDeleteVotingPeriod()
+  const announce = useAnnounceMonthlyTop()
+  const { canPermission } = usePermission()
 
   const items = data?.items ?? data ?? []
 
@@ -85,10 +114,23 @@ export default function AdminVotingPage() {
         title="Voting periods"
         description="Manage idea voting cycles and leadersboards."
         actions={
-          <Button size="sm" onClick={() => setCreating(true)}>
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            New period
-          </Button>
+          <div className="flex items-center gap-2">
+            {canPermission('votingperiods.manage') ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={announce.isPending}
+                onClick={() => announce.mutate({})}
+              >
+                <Megaphone className="h-4 w-4" aria-hidden="true" />
+                Announce appreciation
+              </Button>
+            ) : null}
+            <Button size="sm" onClick={() => setDialog({ mode: 'create' })}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              New period
+            </Button>
+          </div>
         }
       />
 
@@ -117,6 +159,14 @@ export default function AdminVotingPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusBadge status={period.isActive ? 'Open' : 'Closed'} label={period.isActive ? 'Active' : 'Closed'} />
+                  <Button size="sm" variant="outline" onClick={() => setDialog({ mode: 'edit', period })}>
+                    <Pencil className="h-4 w-4" aria-hidden="true" />
+                    Edit
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setConfirmingDelete(period)}>
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    Delete
+                  </Button>
                   {!period.isActive ? (
                     <Button size="sm" variant="outline" onClick={() => activate.mutate(period.id)}>
                       <Play className="h-4 w-4" aria-hidden="true" />
@@ -135,7 +185,22 @@ export default function AdminVotingPage() {
         </div>
       ) : null}
 
-      {creating ? <CreatePeriodDialog onClose={() => setCreating(false)} /> : null}
+      {dialog?.mode === 'create' ? (
+        <PeriodDialog onClose={() => setDialog(null)} />
+      ) : dialog?.mode === 'edit' ? (
+        <PeriodDialog period={dialog.period} onClose={() => setDialog(null)} />
+      ) : null}
+
+      <ConfirmDialog
+        open={Boolean(confirmingDelete)}
+        onOpenChange={(open) => !open && setConfirmingDelete(null)}
+        title="Delete this voting period?"
+        description={confirmingDelete ? `"${confirmingDelete.name}" will be permanently removed if it has no recorded votes.` : ''}
+        confirmLabel="Delete period"
+        onConfirm={() => {
+          if (confirmingDelete) remove.mutate(confirmingDelete.id)
+        }}
+      />
     </div>
   )
 }

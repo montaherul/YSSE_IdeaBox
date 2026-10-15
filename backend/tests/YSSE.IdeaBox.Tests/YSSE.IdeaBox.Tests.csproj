@@ -26,6 +26,7 @@
     <ProjectReference Include="..\..\src\YSSE.IdeaBox.Domain\YSSE.IdeaBox.Domain.csproj" />
     <ProjectReference Include="..\..\src\YSSE.IdeaBox.Application\YSSE.IdeaBox.Application.csproj" />
     <ProjectReference Include="..\..\src\YSSE.IdeaBox.Infrastructure\YSSE.IdeaBox.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\YSSE.IdeaBox.Api\YSSE.IdeaBox.Api.csproj" />
   </ItemGroup>
 
 </Project>

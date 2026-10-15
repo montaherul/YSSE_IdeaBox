@@ -33,6 +33,20 @@ export function useMarkAllNotificationsRead() {
   })
 }
 
+export function useDeleteNotification() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => notificationsApi.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['notifications'] })
+      toast.success('Notification deleted.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
+
 export function useNotificationPreferences() {
   return useQuery({
     queryKey: ['notifications', 'preferences'],

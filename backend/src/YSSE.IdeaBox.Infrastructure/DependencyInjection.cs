@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using YSSE.IdeaBox.Application.Abstractions;
 using YSSE.IdeaBox.Infrastructure.Data;
+using YSSE.IdeaBox.Infrastructure.Queries;
 using YSSE.IdeaBox.Infrastructure.Repositories;
 using YSSE.IdeaBox.Infrastructure.Services;
 
@@ -24,6 +25,7 @@ public static class DependencyInjection
         // generic repositories bound to the same scoped context instance.
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
+        services.AddScoped<IUserPermissionService, UserPermissionService>();
         services.AddScoped<ITokenService, JwtTokenService>();
         services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
         services.AddScoped<IGuestIdentityService, GuestIdentityService>();
@@ -31,6 +33,18 @@ public static class DependencyInjection
         services.AddScoped<IDateTimeProvider, SystemDateTimeProvider>();
         services.AddScoped<ISqlQueryExecutor, DapperSqlQueryExecutor>();
         services.AddScoped<IFileStorage, LocalFileStorage>();
+
+        // Read models: reporting SQL lives in Infrastructure behind Application abstractions.
+        services.AddScoped<IAdminDashboardQueries, AdminDashboardQueries>();
+        services.AddScoped<ILeaderboardQueries, LeaderboardQueries>();
+
+        // Outbound transactional messaging (email/SMS). Both degrade to a logged
+        // no-op when their configuration section is absent, so local development
+        // and CI do not require a mail/SMS provider.
+        services.AddHttpClient();
+        services.AddScoped<IEmailSender, SmtpEmailSender>();
+        services.AddScoped<ISmsSender, HttpSmsSender>();
+
         services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
         services.AddScoped<IAuditWriter, AuditWriter>();
 

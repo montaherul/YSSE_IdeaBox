@@ -4,84 +4,84 @@
 
 /* ------------------------------------------------------------------ */
 /* Design tokens (Tailwind v4 @theme)                                  */
-/* Spec palette: violet #5B4BDB · teal #13A88A · warm #F3A847 ·        */
-/* canvas #F7F5FF · lavender #E6E2FF · ink #201C3B                     */
+/* YSSE brand palette: green #29B77D · light #F0FBF5 · dark #17251E    */
+/* white surfaces · dark-green ink · warm #F3A847 + blue info accents  */
 /* ------------------------------------------------------------------ */
 :root {
   --radius: 0.875rem;
 
-  --background: #f7f5ff; /* light canvas */
-  --foreground: #201c3b; /* ink */
+  --background: #ffffff; /* white surface */
+  --foreground: #17251e; /* dark green ink */
 
   --card: #ffffff;
-  --card-foreground: #201c3b;
+  --card-foreground: #17251e;
 
   --popover: #ffffff;
-  --popover-foreground: #201c3b;
+  --popover-foreground: #17251e;
 
-  --primary: #5b4bdb; /* primary violet */
+  --primary: #29b77d; /* YSSE brand green */
   --primary-foreground: #ffffff;
 
-  --secondary: #e6e2ff; /* soft lavender */
-  --secondary-foreground: #201c3b;
+  --secondary: #f0fbf5; /* light green surface */
+  --secondary-foreground: #17251e;
 
-  --muted: #efecfc;
-  --muted-foreground: #66617f;
+  --muted: #f3f7f4;
+  --muted-foreground: #5c6b63;
 
-  --accent: #dcf3ed; /* soft teal tint */
-  --accent-foreground: #0e7a63;
+  --accent: #eafaf1; /* soft green tint */
+  --accent-foreground: #17694a;
 
   --destructive: #e5484d;
   --destructive-foreground: #ffffff;
 
-  --success: #13a88a; /* innovation teal */
+  --success: #1f9d6b; /* deeper green for success */
   --success-foreground: #ffffff;
 
   --warning: #f3a847; /* warm accent */
   --warning-foreground: #3d2a0d;
 
-  --info: #4e7cff;
+  --info: #3b82f6;
   --info-foreground: #ffffff;
 
-  --border: #e5e1f5;
-  --input: #e5e1f5;
-  --ring: #5b4bdb;
+  --border: #e1ebe5;
+  --input: #e1ebe5;
+  --ring: #29b77d;
 
-  /* Spec palette extras */
-  --teal: #13a88a;
-  --lavender: #e6e2ff;
+  /* Brand palette extras */
+  --teal: #29b77d;
+  --lavender: #f0fbf5;
   --warm: #f3a847;
-  --ink: #201c3b;
-  --canvas: #f7f5ff;
+  --ink: #17251e;
+  --canvas: #ffffff;
 }
 
 .dark {
-  --background: #141420;
-  --foreground: #f5f3ff;
+  --background: #0f1713;
+  --foreground: #eaf5ef;
 
-  --card: #1d1d2d;
-  --card-foreground: #f5f3ff;
+  --card: #16211b;
+  --card-foreground: #eaf5ef;
 
-  --popover: #1d1d2d;
-  --popover-foreground: #f5f3ff;
+  --popover: #16211b;
+  --popover-foreground: #eaf5ef;
 
-  --primary: #8275ff; /* lighter violet for dark */
-  --primary-foreground: #141420;
+  --primary: #34c98c; /* lighter green for dark */
+  --primary-foreground: #08120d;
 
-  --secondary: #2b2745;
-  --secondary-foreground: #edeafb;
+  --secondary: #1d2a23;
+  --secondary-foreground: #d7ece0;
 
-  --muted: #262434;
-  --muted-foreground: #b4b0cc;
+  --muted: #1a2620;
+  --muted-foreground: #9db3a8;
 
-  --accent: #1e3631;
-  --accent-foreground: #7fe0c4;
+  --accent: #173026;
+  --accent-foreground: #6fe0ad;
 
   --destructive: #f87171;
   --destructive-foreground: #2a0b0b;
 
-  --success: #33c9a5;
-  --success-foreground: #0b2b22;
+  --success: #34c98c;
+  --success-foreground: #08120d;
 
   --warning: #f8cb7d;
   --warning-foreground: #3a2c10;
@@ -89,16 +89,16 @@
   --info: #93b1ff;
   --info-foreground: #101b38;
 
-  --border: #3a3850;
-  --input: #45425e;
-  --ring: #8275ff;
+  --border: #26352d;
+  --input: #2f4038;
+  --ring: #34c98c;
 
-  /* Spec palette extras */
-  --teal: #33c9a5;
-  --lavender: #3b3560;
+  /* Brand palette extras */
+  --teal: #34c98c;
+  --lavender: #1d2a23;
   --warm: #f8cb7d;
-  --ink: #1a1730;
-  --canvas: #141420;
+  --ink: #0f1713;
+  --canvas: #0f1713;
 }
 
 @theme inline {

@@ -35,6 +35,10 @@ public interface IVotingService
 
     Task<Result<int>> CreatePeriodAsync(VotingPeriodCreateRequest request, CancellationToken ct = default);
 
+    Task<Result> UpdatePeriodAsync(int id, VotingPeriodCreateRequest request, CancellationToken ct = default);
+
+    Task<Result> DeletePeriodAsync(int id, CancellationToken ct = default);
+
     Task<Result> SetPeriodActiveAsync(int id, bool active, CancellationToken ct = default);
 
     Task<Result> ClosePeriodAsync(int id, CancellationToken ct = default);
@@ -45,6 +49,10 @@ public interface ILeaderboardService
     Task<IReadOnlyList<LeaderboardIdeaDto>> GetTopIdeasAsync(int? votingPeriodId, int take = 3, CancellationToken ct = default);
 
     Task<IReadOnlyList<IdeaMakerLeaderboardDto>> GetTopIdeaMakersAsync(int? votingPeriodId, int take = 3, CancellationToken ct = default);
+
+    Task<MonthlyTopDto> GetMonthlyTopIdeasAsync(int take = 3, CancellationToken ct = default);
+
+    Task<RecognitionResultDto> AnnounceMonthlyTopAsync(string? message = null, CancellationToken ct = default);
 }
 
 public interface IInquiryService
@@ -56,6 +64,10 @@ public interface IInquiryService
     Task<PagedResult<InquiryDto>> GetSentAsync(int page, int pageSize, CancellationToken ct = default);
 
     Task<Result<ConversationRef>> RespondAsync(int inquiryId, InquiryRespondRequest request, CancellationToken ct = default);
+
+    Task<Result> UpdateAsync(int inquiryId, InquiryUpdateRequest request, CancellationToken ct = default);
+
+    Task<Result> DeleteAsync(int inquiryId, CancellationToken ct = default);
 
     Task<PagedResult<IdeaListItemDto>> GetWatchlistAsync(int page, int pageSize, CancellationToken ct = default);
 
@@ -76,27 +88,39 @@ public interface IMessagingService
 
     Task<Result<MessageDto>> SendMessageAsync(int conversationId, MessageSendRequest request, CancellationToken ct = default);
 
+    Task<Result> UpdateMessageAsync(int conversationId, int messageId, MessageUpdateRequest request, CancellationToken ct = default);
+
+    Task<Result> DeleteMessageAsync(int conversationId, int messageId, CancellationToken ct = default);
+
     Task<Result> MarkReadAsync(int conversationId, CancellationToken ct = default);
 
     Task<Result> SetStatusAsync(int conversationId, ConversationStatus status, CancellationToken ct = default);
 
     Task<Result> BlockUserAsync(int userId, CancellationToken ct = default);
-
-    Task<Result> ReportAsync(ReportCreateRequest request, CancellationToken ct = default);
 }
 
 public interface IReportService
 {
+    Task<Result> CreateAsync(ReportCreateRequest request, CancellationToken ct = default);
+
     Task<PagedResult<ReportDto>> ListAsync(ReportStatus? status, int page, int pageSize, CancellationToken ct = default);
+
+    Task<Result> UpdateAsync(int id, ReportUpdateRequest request, CancellationToken ct = default);
+
+    Task<Result> DeleteAsync(int id, CancellationToken ct = default);
 
     Task<Result> ResolveAsync(int id, ReportResolveRequest request, CancellationToken ct = default);
 }
 
 public interface IOutcomeService
 {
-    Task<IReadOnlyList<OutcomeDto>> GetForIdeaAsync(int ideaId, CancellationToken ct = default);
+    Task<PagedResult<OutcomeDto>> GetForIdeaAsync(int ideaId, int page, int pageSize, CancellationToken ct = default);
 
     Task<Result<int>> CreateAsync(OutcomeCreateRequest request, CancellationToken ct = default);
+
+    Task<Result> UpdateAsync(int id, OutcomeUpdateRequest request, CancellationToken ct = default);
+
+    Task<Result> DeleteAsync(int id, CancellationToken ct = default);
 
     Task<Result> VerifyAsync(int id, OutcomeVerifyRequest request, CancellationToken ct = default);
 }
@@ -108,6 +132,10 @@ public interface IProjectService
     Task<ProjectDetailDto?> GetByIdAsync(int id, CancellationToken ct = default);
 
     Task<Result<int>> CreateAsync(ProjectCreateRequest request, CancellationToken ct = default);
+
+    Task<Result> UpdateAsync(int id, ProjectUpdateRequest request, CancellationToken ct = default);
+
+    Task<Result> DeleteAsync(int id, CancellationToken ct = default);
 
     Task<Result> ChangeStatusAsync(int id, ProjectStatusChangeRequest request, CancellationToken ct = default);
 
@@ -125,6 +153,10 @@ public interface IMarketplaceService
     Task<ListingDto?> GetByIdAsync(int id, CancellationToken ct = default);
 
     Task<Result<int>> CreateAsync(ListingCreateRequest request, CancellationToken ct = default);
+
+    Task<Result> UpdateAsync(int id, ListingCreateRequest request, CancellationToken ct = default);
+
+    Task<Result> DeleteAsync(int id, CancellationToken ct = default);
 
     Task<Result> UpdateStatusAsync(int id, ListingStatus status, CancellationToken ct = default);
 
@@ -144,6 +176,8 @@ public interface INotificationService
     Task<Result> MarkReadAsync(int id, CancellationToken ct = default);
 
     Task<Result> MarkAllReadAsync(CancellationToken ct = default);
+
+    Task<Result> DeleteAsync(int id, CancellationToken ct = default);
 
     Task<IReadOnlyList<NotificationPreferenceDto>> GetPreferencesAsync(CancellationToken ct = default);
 

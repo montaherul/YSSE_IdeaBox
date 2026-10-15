@@ -6,6 +6,10 @@ export const messagingApi = {
   startConversation: (payload) => api.post('/conversations', payload),
   sendMessage: (conversationId, payload) =>
     api.post(`/conversations/${conversationId}/messages`, payload),
+  updateMessage: (conversationId, messageId, payload) =>
+    api.put(`/conversations/${conversationId}/messages/${messageId}`, payload),
+  deleteMessage: (conversationId, messageId) =>
+    api.delete(`/conversations/${conversationId}/messages/${messageId}`),
   markRead: (conversationId, payload) => api.post(`/conversations/${conversationId}/read`, payload ?? {}),
   conversationStatus: (conversationId, payload) => api.post(`/conversations/${conversationId}/status`, payload),
   blockUser: (userId, payload) => api.post(`/users/${userId}/block`, payload ?? {}),

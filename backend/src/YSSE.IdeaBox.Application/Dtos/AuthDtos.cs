@@ -56,12 +56,18 @@ public record UserDto
     public string DisplayName { get; init; } = string.Empty;
     public string? Email { get; init; }
     public string? PhoneNumber { get; init; }
+    public string? ImageUrl { get; init; }
     public bool IsEmailVerified { get; init; }
     public bool IsPhoneVerified { get; init; }
-    public bool IsMinor { get; init; }
     public bool HasCreatorProfile { get; init; }
     public bool HasEntrepreneurProfile { get; init; }
     public IReadOnlyList<string> Roles { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Effective permission codes resolved from the user's roles. Used by the client for
+    /// navigation/route gating only — the API remains the authoritative enforcement point.
+    /// </summary>
+    public IReadOnlyList<string> Permissions { get; init; } = Array.Empty<string>();
 }
 
 public record VerifyRequest

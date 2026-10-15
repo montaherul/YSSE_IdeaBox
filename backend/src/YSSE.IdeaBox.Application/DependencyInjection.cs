@@ -2,10 +2,10 @@ using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using YSSE.IdeaBox.Application.Abstractions.Services;
 using YSSE.IdeaBox.Application.Dtos;
-using YSSE.IdeaBox.Application.Services.Admin;
 using YSSE.IdeaBox.Application.Services.Engagement;
 using YSSE.IdeaBox.Application.Services.Ideas;
 using YSSE.IdeaBox.Application.Services.Identity;
+using YSSE.IdeaBox.Application.Services.Platform;
 using YSSE.IdeaBox.Application.Validators;
 
 namespace YSSE.IdeaBox.Application;
@@ -38,8 +38,18 @@ public static class DependencyInjection
         services.AddScoped<IMarketplaceService, MarketplaceService>();
         services.AddScoped<INotificationService, NotificationService>();
 
-        // Administration
-        services.AddScoped<IAdminService, AdminService>();
+        // Access control
+        services.AddScoped<IUserManagementService, UserManagementService>();
+        services.AddScoped<IUserRoleService, UserRoleService>();
+        services.AddScoped<IRoleService, RoleService>();
+        services.AddScoped<IPermissionService, PermissionService>();
+        services.AddScoped<IRolePermissionService, RolePermissionService>();
+
+        // Platform operations
+        services.AddScoped<IAuditLogService, AuditLogService>();
+        services.AddScoped<IPlatformSettingsService, PlatformSettingsService>();
+        services.AddScoped<IStaticContentService, StaticContentService>();
+        services.AddScoped<IAdminDashboardService, AdminDashboardService>();
 
         // Validators
         services.AddScoped<IValidator<RegisterRequest>, RegisterRequestValidator>();
@@ -51,6 +61,11 @@ public static class DependencyInjection
         services.AddScoped<IValidator<ListingCreateRequest>, ListingCreateRequestValidator>();
         services.AddScoped<IValidator<CategoryUpsertRequest>, CategoryUpsertRequestValidator>();
         services.AddScoped<IValidator<ProblemPostCreateRequest>, ProblemPostCreateRequestValidator>();
+        services.AddScoped<IValidator<TagUpsertRequest>, TagUpsertRequestValidator>();
+        services.AddScoped<IValidator<RoleUpsertRequest>, RoleUpsertRequestValidator>();
+        services.AddScoped<IValidator<PermissionUpsertRequest>, PermissionUpsertRequestValidator>();
+        services.AddScoped<IValidator<UserUpdateRequest>, UserUpdateRequestValidator>();
+        services.AddScoped<IValidator<StaticContentUpsertRequest>, StaticContentUpsertRequestValidator>();
 
         return services;
     }

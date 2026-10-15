@@ -14,7 +14,7 @@ public sealed class CurrentUserService : ICurrentUserService
 {
     private const string RoleClaim = "role";
     private readonly IHttpContextAccessor _accessor;
-    private IReadOnlyCollection<RoleName>? _roles;
+    private IReadOnlyCollection<string>? _roles;
 
     public CurrentUserService(IHttpContextAccessor accessor) => _accessor = accessor;
 
@@ -32,7 +32,7 @@ public sealed class CurrentUserService : ICurrentUserService
 
     public bool IsAuthenticated => Principal?.Identity?.IsAuthenticated == true;
 
-    public IReadOnlyCollection<RoleName> Roles
+    public IReadOnlyCollection<string> Roles
     {
         get
         {
@@ -41,7 +41,7 @@ public sealed class CurrentUserService : ICurrentUserService
                 return _roles;
             }
 
-            var roles = new List<RoleName>();
+            var roles = new List<string>();
             if (Principal is not null)
             {
                 var claims = Principal.FindAll(RoleClaim)
@@ -49,9 +49,9 @@ public sealed class CurrentUserService : ICurrentUserService
 
                 foreach (var claim in claims)
                 {
-                    if (Enum.TryParse<RoleName>(claim.Value, ignoreCase: true, out var role) && !roles.Contains(role))
+                    if (!string.IsNullOrWhiteSpace(claim.Value) && !roles.Contains(claim.Value, StringComparer.OrdinalIgnoreCase))
                     {
-                        roles.Add(role);
+                        roles.Add(claim.Value);
                     }
                 }
             }
@@ -60,13 +60,14 @@ public sealed class CurrentUserService : ICurrentUserService
         }
     }
 
-    public bool IsInRole(RoleName role) => Roles.Contains(role);
+    public bool IsInRole(string role) =>
+        !string.IsNullOrWhiteSpace(role) && Roles.Contains(role, StringComparer.OrdinalIgnoreCase);
 
-    public bool IsModeratorOrAdmin => IsInRole(RoleName.Moderator) || IsInRole(RoleName.Administrator);
+    public bool IsModeratorOrAdmin => IsInRole(SystemRoles.Moderator) || IsInRole(SystemRoles.Administrator);
 
-    public bool IsAdmin => IsInRole(RoleName.Administrator);
+    public bool IsAdmin => IsInRole(SystemRoles.Administrator);
 
-    public bool IsScreeningReviewer => IsInRole(RoleName.ScreeningReviewer) || IsInRole(RoleName.Administrator);
+    public bool IsScreeningReviewer => IsInRole(SystemRoles.ScreeningReviewer) || IsInRole(SystemRoles.Administrator);
 
     public string? IpAddress => _accessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
 }

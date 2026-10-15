@@ -10,6 +10,7 @@ public record IdeaListQuery
     public string? Tag { get; init; }
     public DevelopmentStage? Stage { get; init; }
     public IdeaStatus? Status { get; init; }
+    public bool? Featured { get; init; }
     public string? Sort { get; init; }
     public int? Page { get; init; }
     public int? PageSize { get; init; }
@@ -24,6 +25,7 @@ public record IdeaListItemDto
     public string CategoryName { get; init; } = string.Empty;
     public DevelopmentStage Stage { get; init; }
     public IdeaStatus Status { get; init; }
+    public bool IsFeatured { get; init; }
     public bool IsAnonymous { get; init; }
     public string? CreatorAlias { get; init; }
     public int RegisteredReviewCount { get; init; }
@@ -59,6 +61,9 @@ public record IdeaAttachmentDto
     public string ContentType { get; init; } = string.Empty;
     public long SizeBytes { get; init; }
 }
+
+/// <summary>Authorized stream of a private idea attachment for download.</summary>
+public record IdeaAttachmentDownload(string FileName, string ContentType, Stream Content);
 
 public record IdeaStatusHistoryDto
 {
@@ -150,7 +155,7 @@ public record StatusChangeRequest
 public record ScreeningDecisionRequest
 {
     [Required]
-    public IdeaStatus Decision { get; init; }
+    public string Decision { get; init; } = string.Empty;
 
     [Range(1, 5)] public int? OriginalityScore { get; init; }
     [Range(1, 5)] public int? FeasibilityScore { get; init; }

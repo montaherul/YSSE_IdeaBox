@@ -20,6 +20,7 @@ public sealed class MarketplaceController : ApiControllerBase
         => Paged(await _marketplace.SearchAsync(query, ct));
 
     [HttpGet("marketplace/mine")]
+    [Authorize(Policy = Permissions.MarketplaceRead)]
     public async Task<IActionResult> Mine([FromQuery] int page = 1,
         [FromQuery] int pageSize = Pagination.DefaultPageSize, CancellationToken ct = default)
         => Paged(await _marketplace.GetMyListingsAsync(page, pageSize, ct));
@@ -33,22 +34,37 @@ public sealed class MarketplaceController : ApiControllerBase
     }
 
     [HttpPost("marketplace")]
+    [Authorize(Policy = Permissions.MarketplaceCreate)]
     public async Task<IActionResult> Create([FromBody] ListingCreateRequest request, CancellationToken ct)
         => OkResult(await _marketplace.CreateAsync(request, ct));
 
+    [HttpPut("marketplace/{id:int}")]
+    [Authorize(Policy = Permissions.MarketplaceUpdate)]
+    public async Task<IActionResult> Update(int id, [FromBody] ListingCreateRequest request, CancellationToken ct)
+        => OkResult(await _marketplace.UpdateAsync(id, request, ct));
+
+    [HttpDelete("marketplace/{id:int}")]
+    [Authorize(Policy = Permissions.MarketplaceDelete)]
+    public async Task<IActionResult> Delete(int id, CancellationToken ct)
+        => OkResult(await _marketplace.DeleteAsync(id, ct));
+
     [HttpPost("marketplace/{id:int}/status")]
+    [Authorize(Policy = Permissions.MarketplaceUpdate)]
     public async Task<IActionResult> UpdateStatus(int id, [FromBody] ListingStatusRequest request, CancellationToken ct)
         => OkResult(await _marketplace.UpdateStatusAsync(id, request.Status, ct));
 
     [HttpPost("marketplace/{listingId:int}/reservations")]
+    [Authorize(Policy = Permissions.MarketplaceRead)]
     public async Task<IActionResult> RequestReservation(int listingId, [FromBody] ReservationRequest request, CancellationToken ct)
         => OkResult(await _marketplace.RequestReservationAsync(listingId, request, ct));
 
     [HttpGet("marketplace/{listingId:int}/reservations")]
+    [Authorize(Policy = Permissions.MarketplaceManage)]
     public async Task<IActionResult> Reservations(int listingId, CancellationToken ct)
         => OkData(await _marketplace.GetReservationsForListingAsync(listingId, ct));
 
     [HttpPost("reservations/{id:int}/respond")]
+    [Authorize(Policy = Permissions.MarketplaceManage)]
     public async Task<IActionResult> RespondReservation(int id, [FromBody] ReservationRespondRequest request, CancellationToken ct)
         => OkResult(await _marketplace.RespondReservationAsync(id, request.Accept, ct));
 }

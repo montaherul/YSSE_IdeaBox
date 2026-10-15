@@ -35,6 +35,14 @@ public record InquiryRespondRequest
     public string? Reply { get; init; }
 }
 
+public record InquiryUpdateRequest
+{
+    [Required] public InquiryType Type { get; init; }
+
+    [Required, MinLength(10), MaxLength(3000)]
+    public string Message { get; init; } = string.Empty;
+}
+
 public record MatchResultDto
 {
     public int IdeaId { get; init; }

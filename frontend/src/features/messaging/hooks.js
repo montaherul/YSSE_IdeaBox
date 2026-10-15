@@ -36,6 +36,36 @@ export function useSendMessage(conversationId) {
   })
 }
 
+export function useUpdateMessage(conversationId) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ messageId, payload }) => messagingApi.updateMessage(conversationId, messageId, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['conversations', conversationId] })
+      qc.invalidateQueries({ queryKey: ['conversations', 'list'] })
+      toast.success('Message updated.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
+
+export function useDeleteMessage(conversationId) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (messageId) => messagingApi.deleteMessage(conversationId, messageId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['conversations', conversationId] })
+      qc.invalidateQueries({ queryKey: ['conversations', 'list'] })
+      toast.success('Message deleted.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
+
 export function useStartConversation() {
   const qc = useQueryClient()
   return useMutation({

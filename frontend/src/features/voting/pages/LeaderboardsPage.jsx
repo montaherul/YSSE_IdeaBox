@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Trophy, Medal, Lightbulb, Heart, MessageSquare } from 'lucide-react'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
-import { useLeaderboardIdeas, useLeaderboardIdeaMakers } from '../hooks'
+import { useLeaderboardIdeas, useLeaderboardIdeaMakers } from '@/features/voting/hooks'
 import { useVotingPeriods } from '@/features/voting/hooks'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -62,35 +62,66 @@ export default function LeaderboardsPage() {
             <EmptyState icon={Trophy} title="No ranked ideas yet" description="Voting results will appear here once a voting period closes." />
           ) : null}
           {ideaItems.length > 0 ? (
-            <ol className="space-y-3">
-              {ideaItems.map((idea, index) => (
-                <li key={idea.id ?? idea.slug}>
-                  <Card>
-                    <CardContent className="flex items-center gap-4 p-4">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
-                        {rankIcon(idea.rank ?? index + 1)}
+            <div className="space-y-6">
+              <div className="grid gap-4 sm:grid-cols-3">
+                {ideaItems.slice(0, 3).map((idea, index) => (
+                  <Card key={idea.id ?? idea.slug} className="border-primary/40 bg-accent/40">
+                    <CardContent className="space-y-2 p-4 text-center">
+                      <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                        {index === 0 ? (
+                          <Trophy className="h-5 w-5" aria-hidden="true" />
+                        ) : (
+                          <Medal className="h-5 w-5" aria-hidden="true" />
+                        )}
                       </span>
-                      <div className="min-w-0 flex-1">
-                        <Link to={`/ideas/${idea.slug ?? idea.id}`} className="font-medium hover:text-primary">
-                          {idea.title}
-                        </Link>
-                        <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                          <span className="inline-flex items-center gap-1">
-                            <Heart className="h-3.5 w-3.5" aria-hidden="true" />
-                            {formatCompact(idea.voteCount ?? 0)} votes
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
-                            {formatCompact(idea.reviewCount ?? 0)} reviews
-                          </span>
-                        </div>
-                      </div>
-                      <StatusBadge status={idea.status} />
+                      <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                        Rank #{idea.rank ?? index + 1}
+                      </p>
+                      <Link
+                        to={`/ideas/${idea.slug ?? idea.id}`}
+                        className="block font-semibold hover:text-primary"
+                      >
+                        {idea.title}
+                      </Link>
+                      <p className="text-xs text-muted-foreground">
+                        {formatCompact(idea.voteCount ?? 0)} votes
+                      </p>
                     </CardContent>
                   </Card>
-                </li>
-              ))}
-            </ol>
+                ))}
+              </div>
+              {ideaItems.length > 3 ? (
+                <ol className="space-y-3">
+                  {ideaItems.slice(3).map((idea, index) => (
+                    <li key={idea.id ?? idea.slug}>
+                      <Card>
+                        <CardContent className="flex items-center gap-4 p-4">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
+                            {rankIcon(idea.rank ?? index + 4)}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <Link to={`/ideas/${idea.slug ?? idea.id}`} className="font-medium hover:text-primary">
+                              {idea.title}
+                            </Link>
+                            <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                              <span className="inline-flex items-center gap-1">
+                                <Heart className="h-3.5 w-3.5" aria-hidden="true" />
+                                {formatCompact(idea.voteCount ?? 0)} votes
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                                {formatCompact(idea.reviewCount ?? 0)} reviews
+                              </span>
+                            </div>
+                          </div>
+                          <StatusBadge status={idea.status} />
+                        </CardContent>
+                      </Card>
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
+            </div>
           ) : null}
         </TabsContent>
 

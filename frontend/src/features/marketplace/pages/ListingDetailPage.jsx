@@ -1,17 +1,19 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { MapPin, Calendar, Send } from 'lucide-react'
+import { MapPin, Calendar, Send, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { useAuth } from '@/hooks/useAuth'
 import { reservationSchema, toErrorMessage } from '@/lib/validation'
-import { useListing, useCreateReservation } from '../hooks'
+import { useListing, useCreateReservation, useDeleteListing } from '@/features/marketplace/hooks'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { PageSkeleton } from '@/components/shared/LoadingSkeleton'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { FacilitationNotice } from '@/components/shared/FacilitationNotice'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -20,9 +22,12 @@ import { formatCurrency, formatDate } from '@/lib/format'
 
 export default function ListingDetailPage() {
   const { id } = useParams()
-  const { isAuthenticated } = useAuth()
+  const navigate = useNavigate()
+  const { isAuthenticated, user } = useAuth()
   const { data: listing, isLoading, isError, error } = useListing(id)
   const reserve = useCreateReservation()
+  const remove = useDeleteListing()
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   useDocumentTitle(listing?.title ? `${listing.title} — Listing` : 'Listing')
 
   const form = useForm({
@@ -33,6 +38,8 @@ export default function ListingDetailPage() {
   if (isLoading) return <PageSkeleton lines={6} />
   if (isError) return <ErrorState message={error?.message} />
   if (!listing) return <ErrorState title="Listing not found" message="This listing may have been removed." />
+
+  const isOwner = isAuthenticated && user?.id === listing.ownerUserId
 
   const onSubmit = async (values) => {
     try {
@@ -49,7 +56,25 @@ export default function ListingDetailPage() {
       <PageHeader
         title={listing.title}
         description={listing.category ? `Category: ${listing.category}` : undefined}
-        actions={<StatusBadge status={listing.status} />}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {isOwner ? (
+              <>
+                <Button asChild variant="outline">
+                  <Link to={`/marketplace/${listing.id}/edit`}>
+                    <Pencil className="h-4 w-4" aria-hidden="true" />
+                    Edit
+                  </Link>
+                </Button>
+                <Button variant="outline" onClick={() => setConfirmingDelete(true)}>
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  Delete
+                </Button>
+              </>
+            ) : null}
+            <StatusBadge status={listing.status} />
+          </div>
+        }
       />
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
@@ -128,6 +153,19 @@ export default function ListingDetailPage() {
       </div>
 
       <FacilitationNotice />
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        title="Delete this listing?"
+        description="This listing will be removed for everyone. This cannot be undone."
+        confirmLabel="Delete listing"
+        onConfirm={() => {
+          remove.mutate(listing.id, {
+            onSuccess: () => navigate('/marketplace/mine'),
+          })
+        }}
+      />
     </div>
   )
 }

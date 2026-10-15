@@ -27,9 +27,6 @@ public record MemberProfileUpdateRequest
     [MaxLength(500)]
     public string? Interests { get; init; }
 
-    [MaxLength(500)]
-    public string? ImageUrl { get; init; }
-
     [MaxLength(8)]
     public string PreferredLanguage { get; init; } = "en";
 }

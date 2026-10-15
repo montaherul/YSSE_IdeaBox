@@ -67,6 +67,34 @@ export function useCreateVotingPeriod() {
   })
 }
 
+export function useUpdateVotingPeriod() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }) => votingApi.updatePeriod(id, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['voting-periods'] })
+      toast.success('Voting period updated.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
+
+export function useDeleteVotingPeriod() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => votingApi.deletePeriod(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['voting-periods'] })
+      toast.success('Voting period deleted.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
+
 export function useActivateVotingPeriod() {
   const qc = useQueryClient()
   return useMutation({
@@ -109,5 +137,32 @@ export function useLeaderboardIdeaMakers(params) {
     queryKey: ['leaderboards', 'makers', params],
     queryFn: () => votingApi.leaderboardIdeaMakers(params),
     staleTime: 5 * 60_000,
+  })
+}
+
+export function useMonthlyTopIdeas(take = 3) {
+  return useQuery({
+    queryKey: ['leaderboards', 'monthly-top', take],
+    queryFn: () => votingApi.monthlyTopIdeas({ take }),
+    staleTime: 5 * 60_000,
+  })
+}
+
+export function useAnnounceMonthlyTop() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload) => votingApi.announceMonthlyTop(payload),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['leaderboards'] })
+      const count = data?.notifiedCount ?? 0
+      toast.success(
+        count > 0
+          ? `Appreciation sent to ${count} contributor${count === 1 ? '' : 's'}.`
+          : 'No contributors to notify.',
+      )
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
   })
 }

@@ -1,0 +1,10 @@
+// Shared feature primitives — reused across resource modules.
+export { createResourceApi } from './api/baseApi'
+export { createResourceMutations } from './hooks/useResourceMutations'
+export { useResourceList, useResource } from './hooks/useResourceList'
+export { ResourceTable } from './components/ResourceTable'
+export { ResourceCardGrid } from './components/ResourceCardGrid'
+export { ResourceFormDialog } from './components/ResourceFormDialog'
+export { ResourceActions } from './components/ResourceActions'
+export { ResourceFilters } from './components/ResourceFilters'
+export * from './validation/commonSchemas'

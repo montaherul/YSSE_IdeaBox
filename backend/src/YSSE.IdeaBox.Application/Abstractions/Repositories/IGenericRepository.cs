@@ -4,8 +4,9 @@ namespace YSSE.IdeaBox.Application.Abstractions;
 
 /// <summary>
 /// Generic data-access contract implemented by the Infrastructure layer.
-/// Standard CRUD flows through <see cref="Query"/> / Add / Update / Remove;
-/// complex/reporting reads go through <see cref="ExecuteQueryAsync{TResult}"/>.
+/// Standard CRUD flows through <see cref="Query"/> / Add / Update / Remove.
+/// Complex/reporting reads live in dedicated Infrastructure query classes exposed
+/// through Application read-model abstractions (never raw SQL on this repository).
 /// </summary>
 public interface IGenericRepository<TEntity>
     where TEntity : class
@@ -26,8 +27,4 @@ public interface IGenericRepository<TEntity>
     void Remove(TEntity entity);
 
     void RemoveRange(IEnumerable<TEntity> entities);
-
-    /// <summary>Executes a read-only SQL/SP query via Dapper for complex listing/reporting reads.</summary>
-    Task<IReadOnlyList<TResult>> ExecuteQueryAsync<TResult>(
-        string sql, object? parameters = null, CancellationToken ct = default);
 }

@@ -5,44 +5,57 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Bookmark,
   Calendar,
+  Download,
   Eye,
+  FileText,
   Heart,
   Link2,
   MessageSquare,
+  Pencil,
   Share2,
+  ShieldCheck,
   Star,
+  Trash2,
   UserRound,
   Lock,
+  FolderKanban,
+  Plus,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermission } from '@/hooks/usePermission'
-import { reviewSchema, commentSchema, toErrorMessage } from '@/lib/validation'
-import { useIdeaBySlug, useRegisterIdeaView, useSimilarIdeas } from '../hooks'
+import { reviewSchema, projectSchema, toErrorMessage } from '@/lib/validation'
+import { downloadBlob } from '@/lib/media'
+import { useIdeaBySlug, useRegisterIdeaView, useSimilarIdeas } from '@/features/ideas/hooks'
+import { ideasApi } from '@/features/ideas/api'
 import { useIdeaVotes, useCastVote, useRemoveVote } from '@/features/voting/hooks'
 import {
   useIdeaReviews,
   useCreateReview,
   useCreateGuestReview,
-  useIdeaComments,
-  useCreateComment,
+  useUpdateReview,
+  useDeleteReview,
+  useModerateReview,
   useFollowIdea,
 } from '@/features/reviews/hooks'
+import { useIdeaProjects, useCreateProject } from '@/features/projects/hooks'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { PageSkeleton } from '@/components/shared/LoadingSkeleton'
 import { FacilitationNotice } from '@/components/shared/FacilitationNotice'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { TagList } from '@/components/shared/TagList'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { FormField } from '@/components/ui/form-field'
-import { formatCompact, formatDate, sanitizeText, timeAgo } from '@/lib/format'
+import { useFormat } from '@/hooks/useFormat'
 import { GUEST_REVIEW_NOTICE } from '@/config/constants'
-import { IdeaCard } from '../components/IdeaCard'
+import { IdeaCard } from '@/features/ideas/components/IdeaCard'
 
 function RatingInput({ value, onChange, disabled }) {
   return (
@@ -68,16 +81,30 @@ function RatingInput({ value, onChange, disabled }) {
 
 function ReviewSection({ ideaId }) {
   const { isAuthenticated } = useAuth()
+  const { can } = usePermission()
+  const { formatCompact, timeAgo } = useFormat()
   const { data: reviews } = useIdeaReviews(ideaId)
   const create = useCreateReview(ideaId)
   const createGuest = useCreateGuestReview(ideaId)
-  const items = (reviews?.items ?? reviews ?? []).filter((r) => r.status !== 'Hidden' && r.status !== 'RemovedReview')
+  const update = useUpdateReview(ideaId)
+  const remove = useDeleteReview(ideaId)
+  const moderate = useModerateReview(ideaId)
+  const [editing, setEditing] = useState(null)
+  const [pendingDelete, setPendingDelete] = useState(null)
+  const items = (reviews?.items ?? reviews ?? []).filter((r) => r.moderationStatus !== 'Hidden' && r.moderationStatus !== 'Removed' && r.moderationStatus !== 'Spam')
+  const canModerate = can('admin') || can('moderator') || can('reviewer')
 
   const form = useForm({
     resolver: zodResolver(reviewSchema),
     defaultValues: { body: '', rating: null },
   })
   const [rating, setRating] = useState(null)
+
+  const editForm = useForm({
+    resolver: zodResolver(reviewSchema),
+    defaultValues: { body: '', rating: null },
+  })
+  const [editRating, setEditRating] = useState(null)
 
   const onSubmit = async (values) => {
     const payload = { ...values, rating }
@@ -91,12 +118,33 @@ function ReviewSection({ ideaId }) {
     }
   }
 
+  const onEditSubmit = async (values) => {
+    if (!editing) return
+    try {
+      await update.mutateAsync({ id: editing.id, payload: { ...values, rating: editRating } })
+      setEditing(null)
+      setEditRating(null)
+    } catch (err) {
+      editForm.setError('root', { message: toErrorMessage(err) })
+    }
+  }
+
+  const startEdit = (review) => {
+    editForm.reset({ body: review.body ?? '', rating: review.rating ?? null })
+    setEditRating(review.rating ?? null)
+    setEditing(review)
+  }
+
+  const moderateTo = (review, status) => {
+    moderate.mutate({ id: review.id, payload: { status, reason: 'Moderated via idea page' } })
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <MessageSquare className="h-4 w-4" aria-hidden="true" />
-          Reviews ({formatCompact(items.length)})
+          Reviews ({formatCompact(items.length + (editing ? 0 : 0))})
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -126,10 +174,37 @@ function ReviewSection({ ideaId }) {
               <li key={review.id} className="rounded-lg border p-4">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <UserAvatar name={review.author?.displayName ?? review.authorName} className="h-7 w-7" />
-                    <span className="text-sm font-medium">{review.author?.displayName ?? review.authorName ?? 'Anonymous'}</span>
+                    <UserAvatar name={review.displayName} className="h-7 w-7" />
+                    <span className="text-sm font-medium">{review.displayName ?? 'Anonymous'}</span>
+                    {review.canEdit ? (
+                      <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">You</span>
+                    ) : null}
                   </div>
-                  <span className="text-xs text-muted-foreground">{timeAgo(review.createdAt)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{timeAgo(review.createdAt)}</span>
+                    {review.canEdit ? (
+                      <>
+                        <Button size="sm" variant="ghost" onClick={() => startEdit(review)} disabled={Boolean(editing)}>
+                          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                          Edit
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setPendingDelete(review)}>
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                          Delete
+                        </Button>
+                      </>
+                    ) : null}
+                    {canModerate ? (
+                      <div className="flex items-center gap-1">
+                        {review.moderationStatus === 'Published' ? (
+                          <Button size="sm" variant="ghost" onClick={() => moderateTo(review, 'Hidden')}>
+                            <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                            Hide
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
                 {review.rating ? (
                   <p aria-label={`Rated ${review.rating} out of 5`} className="mt-2 text-warning">
@@ -137,88 +212,55 @@ function ReviewSection({ ideaId }) {
                     <span className="text-muted-foreground" aria-hidden="true">{'★'.repeat(5 - review.rating)}</span>
                   </p>
                 ) : null}
-                <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{review.body}</p>
+                {editing?.id === review.id ? (
+                  <form onSubmit={editForm.handleSubmit(onEditSubmit)} noValidate className="mt-3 space-y-3 rounded-md border p-3">
+                    {editForm.formState.errors.root ? (
+                      <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{editForm.formState.errors.root.message}</p>
+                    ) : null}
+                    <FormField id={`edit-review-body-${review.id}`} label="Your review" required error={editForm.formState.errors.body?.message}>
+                      <Textarea id={`edit-review-body-${review.id}`} rows={3} {...editForm.register('body')} />
+                    </FormField>
+                    <div className="flex items-center justify-between gap-3">
+                      <RatingInput value={editRating} onChange={setEditRating} disabled={update.isPending} />
+                      <div className="flex gap-2">
+                        <Button type="submit" size="sm" disabled={update.isPending}>
+                          {update.isPending ? 'Saving…' : 'Save'}
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => setEditing(null)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </form>
+                ) : (
+                  <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{review.body}</p>
+                )}
               </li>
             ))}
           </ul>
         )}
       </CardContent>
-    </Card>
-  )
-}
 
-function CommentsSection({ ideaId }) {
-  const { isAuthenticated } = useAuth()
-  const { data: comments } = useIdeaComments(ideaId)
-  const create = useCreateComment(ideaId)
-  const items = comments?.items ?? comments ?? []
-
-  const form = useForm({
-    resolver: zodResolver(commentSchema),
-    defaultValues: { body: '' },
-  })
-
-  const onSubmit = async (values) => {
-    try {
-      await create.mutateAsync(values)
-      form.reset()
-    } catch (err) {
-      form.setError('root', { message: toErrorMessage(err) })
-    }
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <MessageSquare className="h-4 w-4" aria-hidden="true" />
-          Discussion ({formatCompact(items.length)})
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        {isAuthenticated ? (
-          <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-3">
-            {form.formState.errors.root ? (
-              <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{form.formState.errors.root.message}</p>
-            ) : null}
-            <FormField id="comment-body" label="Add a comment" required error={form.formState.errors.body?.message}>
-              <Textarea id="comment-body" rows={2} {...form.register('body')} />
-            </FormField>
-            <div className="flex justify-end">
-              <Button type="submit" size="sm" disabled={create.isPending}>{create.isPending ? 'Posting…' : 'Comment'}</Button>
-            </div>
-          </form>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            <Link to="/login" className="text-primary hover:underline">Sign in</Link> to join the discussion.
-          </p>
-        )}
-
-        {items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No comments yet. Start the conversation.</p>
-        ) : (
-          <ul aria-label="Comments" className="space-y-3">
-            {items.map((comment) => (
-              <li key={comment.id} className="flex items-start gap-3 rounded-lg border p-3">
-                <UserAvatar name={comment.author?.displayName ?? comment.authorName} className="h-8 w-8" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium">{comment.author?.displayName ?? comment.authorName ?? 'Guest'}</span>
-                    <span className="text-xs text-muted-foreground">{timeAgo(comment.createdAt)}</span>
-                  </div>
-                  <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{comment.body}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+        title="Delete this review?"
+        description="Your review will be removed from the idea page."
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (pendingDelete) {
+            remove.mutate(pendingDelete.id)
+            setPendingDelete(null)
+          }
+        }}
+      />
     </Card>
   )
 }
 
 function VotePanel({ idea }) {
   const { isAuthenticated } = useAuth()
+  const { formatCompact } = useFormat()
   const { data: votes } = useIdeaVotes(idea?.id)
   const cast = useCastVote(idea?.id)
   const remove = useRemoveVote(idea?.id)
@@ -268,14 +310,101 @@ function VotePanel({ idea }) {
   )
 }
 
+function ProjectsSection({ ideaId, canStart }) {
+  const { isAuthenticated } = useAuth()
+  const { data: projects } = useIdeaProjects(ideaId)
+  const create = useCreateProject()
+  const [open, setOpen] = useState(false)
+  const items = projects?.items ?? projects ?? []
+
+  const form = useForm({
+    resolver: zodResolver(projectSchema),
+    defaultValues: { ideaId, name: '', objectives: '' },
+  })
+
+  const onSubmit = async (values) => {
+    try {
+      await create.mutateAsync(values)
+      form.reset()
+      setOpen(false)
+    } catch (err) {
+      form.setError('root', { message: toErrorMessage(err) })
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <CardTitle className="flex items-center gap-2">
+          <FolderKanban className="h-4 w-4" aria-hidden="true" />
+          Projects ({items.length})
+        </CardTitle>
+        {canStart && isAuthenticated && !open ? (
+          <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Start a project
+          </Button>
+        ) : null}
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {open ? (
+          <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-3 rounded-lg border p-4">
+            {form.formState.errors.root ? (
+              <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {form.formState.errors.root.message}
+              </p>
+            ) : null}
+            <FormField id={`project-name-${ideaId}`} label="Project name" required error={form.formState.errors.name?.message}>
+              <Input id={`project-name-${ideaId}`} {...form.register('name')} />
+            </FormField>
+            <FormField id={`project-objectives-${ideaId}`} label="Objectives (optional)" error={form.formState.errors.objectives?.message}>
+              <Textarea id={`project-objectives-${ideaId}`} rows={3} {...form.register('objectives')} />
+            </FormField>
+            <div className="flex gap-2">
+              <Button type="submit" size="sm" disabled={create.isPending}>
+                {create.isPending ? 'Creating…' : 'Create'}
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        ) : null}
+
+        {items.length === 0 && !open ? (
+          <p className="text-sm text-muted-foreground">
+            No projects yet.{canStart && isAuthenticated ? ' Be the first to start a collaboration.' : ''}
+          </p>
+        ) : (
+          <ul aria-label="Projects" className="space-y-2">
+            {items.map((project) => (
+              <li key={project.id}>
+                <Link
+                  to={`/projects/${project.id}`}
+                  className="flex items-center justify-between gap-2 rounded-lg border p-3 text-sm hover:bg-accent"
+                >
+                  <span className="font-medium">{project.name}</span>
+                  <StatusBadge status={project.status} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function IdeaDetailPage() {
+  const { formatCompact, formatDate, sanitizeText } = useFormat()
   const { slug } = useParams()
   const { user, isAuthenticated } = useAuth()
-  const { canSendInquiries, can } = usePermission()
+  const { canSendInquiries, can, canPermission } = usePermission()
   const registerView = useRegisterIdeaView()
   const follow = useFollowIdea()
   const { data: idea, isLoading, isError, error } = useIdeaBySlug(slug)
   const { data: similar } = useSimilarIdeas(idea?.id, Boolean(idea?.id))
+  const [downloadingId, setDownloadingId] = useState(null)
   const title = idea?.title ? `${idea.title} — Idea` : 'Idea'
 
   useDocumentTitle(title)
@@ -283,6 +412,18 @@ export default function IdeaDetailPage() {
   useEffect(() => {
     if (idea?.id) registerView.mutate(idea.id)
   }, [idea?.id])
+
+  const downloadDocument = async (attachment) => {
+    try {
+      setDownloadingId(attachment.id)
+      const blob = await ideasApi.downloadAttachment(idea.id)
+      downloadBlob(blob, attachment.fileName || 'document.pdf')
+    } catch (err) {
+      toast.error(toErrorMessage(err))
+    } finally {
+      setDownloadingId(null)
+    }
+  }
 
   const share = async () => {
     const url = window.location.href
@@ -400,11 +541,37 @@ export default function IdeaDetailPage() {
                   <TagList className="mt-2" tags={idea.tags} />
                 </section>
               ) : null}
+
+              {idea.attachments?.length ? (
+                <section>
+                  <h2 className="text-base font-semibold">Full document</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Private document. Visible to you and authorised reviewers only.
+                  </p>
+                  <ul className="mt-2 space-y-2">
+                    {idea.attachments.map((attachment) => (
+                      <li key={attachment.id}>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => downloadDocument(attachment)}
+                          disabled={downloadingId === attachment.id}
+                        >
+                          <FileText className="h-4 w-4" aria-hidden="true" />
+                          {attachment.fileName}
+                          <Download className="h-4 w-4" aria-hidden="true" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
             </CardContent>
           </Card>
 
+          <ProjectsSection ideaId={idea.id} canStart={canPermission('projects.create')} />
           <ReviewSection ideaId={idea.id} />
-          <CommentsSection ideaId={idea.id} />
         </div>
 
         <div className="space-y-6">

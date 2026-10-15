@@ -5,6 +5,30 @@ import { ideasApi } from './api'
 import { screeningApi } from './screening-api'
 import { toErrorMessage } from '@/lib/validation'
 
+/**
+ * Applies the optional private-PDF changes after the idea itself has been saved.
+ * A failed upload must not fail the whole submission (the idea is already persisted),
+ * so the error is surfaced as a toast without throwing.
+ */
+async function applyIdeaAttachment({ ideaId, attachmentFile, removeAttachment }) {
+  if (!ideaId) return
+  if (attachmentFile) {
+    try {
+      await ideasApi.uploadAttachment(ideaId, attachmentFile)
+    } catch (e) {
+      toast.error(`Idea saved, but the document upload failed: ${toErrorMessage(e)}`)
+    }
+    return
+  }
+  if (removeAttachment) {
+    try {
+      await ideasApi.removeAttachment(ideaId)
+    } catch (e) {
+      toast.error(`Idea saved, but the document could not be removed: ${toErrorMessage(e)}`)
+    }
+  }
+}
+
 export function useIdeaList(params, enabled = true) {
   return useQuery({
     queryKey: ['ideas', 'list', params],
@@ -60,7 +84,11 @@ export function useCreateIdea(quick = false) {
   const qc = useQueryClient()
   const navigate = useNavigate()
   return useMutation({
-    mutationFn: (payload) => (quick ? ideasApi.createQuick(payload) : ideasApi.create(payload)),
+    mutationFn: async ({ attachmentFile, removeAttachment, ...payload }) => {
+      const id = await (quick ? ideasApi.createQuick(payload) : ideasApi.create(payload))
+      await applyIdeaAttachment({ ideaId: id, attachmentFile, removeAttachment })
+      return id
+    },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['ideas', 'mine'] })
       qc.invalidateQueries({ queryKey: ['ideas', 'list'] })
@@ -77,7 +105,11 @@ export function useUpdateIdea() {
   const qc = useQueryClient()
   const navigate = useNavigate()
   return useMutation({
-    mutationFn: ({ id, payload }) => ideasApi.update(id, payload),
+    mutationFn: async ({ id, payload, attachmentFile, removeAttachment }) => {
+      await ideasApi.update(id, payload)
+      await applyIdeaAttachment({ ideaId: id, attachmentFile, removeAttachment })
+      return id
+    },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['ideas'] })
       toast.success('Idea updated.')
@@ -111,6 +143,20 @@ export function useWithdrawIdea() {
       qc.invalidateQueries({ queryKey: ['ideas', 'mine'] })
       qc.invalidateQueries({ queryKey: ['ideas', 'list'] })
       toast.success('Idea withdrawn.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
+
+export function useSetIdeaFeatured() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, featured }) => (featured ? ideasApi.feature(id) : ideasApi.unfeature(id)),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['ideas'] })
+      toast.success(variables.featured ? 'Idea featured.' : 'Idea removed from featured.')
     },
     onError: (e) => {
       if (!e?.status) toast.error(toErrorMessage(e))
@@ -152,7 +198,7 @@ export function useScreeningDecision(ideaId) {
       toast.success('Screening decision recorded.')
     },
     onError: (e) => {
-      if (!e?.status) toast.error(toErrorMessage(e))
+      toast.error(toErrorMessage(e))
     },
   })
 }

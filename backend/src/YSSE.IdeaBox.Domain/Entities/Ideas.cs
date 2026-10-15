@@ -53,6 +53,11 @@ public class Idea : BaseEntity, ISoftDeletable
 
     public DateTime? PublishedAt { get; set; }
 
+    /// <summary>Editorial curation flag; featured ideas are surfaced on the public homepage.</summary>
+    public bool IsFeatured { get; set; }
+
+    public DateTime? FeaturedAt { get; set; }
+
     public int ViewsCount { get; set; }
 
     public bool IsDeleted { get; set; }

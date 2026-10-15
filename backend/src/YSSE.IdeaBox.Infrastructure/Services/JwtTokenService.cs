@@ -28,9 +28,15 @@ public sealed class JwtTokenService : ITokenService
 
     public JwtTokenService(IConfiguration configuration, IDateTimeProvider clock)
     {
-        _key = string.IsNullOrWhiteSpace(configuration["Jwt:Key"])
-            ? "ysse-ideabox-development-signing-key-please-change-me"
-            : configuration["Jwt:Key"]!;
+        var key = configuration["Jwt:Key"];
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            throw new InvalidOperationException(
+                "Jwt:Key is not configured. The token service cannot issue or validate tokens without a signing key.");
+        }
+
+        _key = key;
+
         _issuer = configuration["Jwt:Issuer"] ?? "YSSE.IdeaBox";
         _audience = configuration["Jwt:Audience"] ?? "YSSE.IdeaBox";
         _accessTokenMinutes = int.TryParse(configuration["Jwt:AccessTokenMinutes"], out var minutes) && minutes > 0
@@ -62,7 +68,7 @@ public sealed class JwtTokenService : ITokenService
 
         foreach (var role in user.Roles)
         {
-            accessClaims.Add(new Claim(RoleClaim, role.ToString()));
+            accessClaims.Add(new Claim(RoleClaim, role));
         }
 
         var refreshClaims = new List<Claim>

@@ -73,10 +73,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<Notification> Notifications { get; set; } = null!;
     public DbSet<NotificationPreference> NotificationPreferences { get; set; } = null!;
 
-    public DbSet<HelperAssistedSubmission> HelperAssistedSubmissions { get; set; } = null!;
-    public DbSet<GuardianLink> GuardianLinks { get; set; } = null!;
-    public DbSet<OrganizationPartner> OrganizationPartners { get; set; } = null!;
-    public DbSet<OrganizationPartnerMember> OrganizationPartnerMembers { get; set; } = null!;
+    public DbSet<StaticContent> StaticContents { get; set; } = null!;
 
     public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
         => Database.BeginTransactionAsync(cancellationToken);

@@ -49,9 +49,10 @@ public sealed class ProblemService : IProblemService
             .OrderByDescending(p => p.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(p => new ProblemPostDto
+.Select(p => new ProblemPostDto
             {
                 Id = p.Id,
+                AuthorUserId = p.AuthorUserId,
                 Title = p.Title,
                 WhoAffected = p.WhoAffected,
                 CoarseLocation = p.CoarseLocation,
@@ -74,9 +75,10 @@ public sealed class ProblemService : IProblemService
         var userId = _current.UserId;
         return await _unitOfWork.Repository<ProblemPost>().Query()
             .Where(p => p.Id == id && !p.IsDeleted)
-            .Select(p => new ProblemPostDto
+.Select(p => new ProblemPostDto
             {
                 Id = p.Id,
+                AuthorUserId = p.AuthorUserId,
                 Title = p.Title,
                 WhoAffected = p.WhoAffected,
                 CoarseLocation = p.CoarseLocation,
@@ -92,7 +94,7 @@ public sealed class ProblemService : IProblemService
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<Result<int>> CreateAsync(ProblemPostCreateRequest request, CancellationToken ct = default)
+public async Task<Result<int>> CreateAsync(ProblemPostCreateRequest request, CancellationToken ct = default)
     {
         var userId = _current.RequireUserId();
         var problem = new ProblemPost
@@ -110,6 +112,64 @@ public sealed class ProblemService : IProblemService
         await _unitOfWork.Repository<ProblemPost>().AddAsync(problem, ct);
         await _unitOfWork.SaveChangesAsync(ct);
         return Result<int>.Ok(problem.Id);
+    }
+
+    public async Task<Result> UpdateAsync(int id, ProblemPostCreateRequest request, CancellationToken ct = default)
+    {
+        var problem = await _unitOfWork.Repository<ProblemPost>().Query().FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted, ct);
+        if (problem is null)
+        {
+            throw new NotFoundException("Problem not found.");
+        }
+
+        if (!_current.IsModeratorOrAdmin && problem.AuthorUserId != _current.UserId)
+        {
+            throw new ForbiddenException();
+        }
+
+        problem.Title = request.Title.Trim();
+        problem.WhoAffected = request.WhoAffected.Trim();
+        problem.CoarseLocation = request.CoarseLocation;
+        problem.WhyItMatters = request.WhyItMatters.Trim();
+        problem.Urgency = request.Urgency;
+        problem.PhotoUrl = request.PhotoUrl;
+        problem.UpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        if (_current.IsAuthenticated)
+        {
+            await _audit.RecordAsync("ProblemUpdated", nameof(ProblemPost), problem.Id.ToString(),
+                null, new { problem.Title }, ct);
+        }
+
+        return Result.Ok();
+    }
+
+    public async Task<Result> DeleteAsync(int id, CancellationToken ct = default)
+    {
+        var problem = await _unitOfWork.Repository<ProblemPost>().Query().FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted, ct);
+        if (problem is null)
+        {
+            throw new NotFoundException("Problem not found.");
+        }
+
+        if (!_current.IsModeratorOrAdmin && problem.AuthorUserId != _current.UserId)
+        {
+            throw new ForbiddenException();
+        }
+
+        problem.IsDeleted = true;
+        problem.DeletedAt = _clock.UtcNow;
+        problem.UpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        if (_current.IsAuthenticated)
+        {
+            await _audit.RecordAsync("ProblemDeleted", nameof(ProblemPost), problem.Id.ToString(),
+                null, new { problem.Title }, ct);
+        }
+
+        return Result.Ok();
     }
 
     public async Task<Result> EndorseAsync(int id, CancellationToken ct = default)

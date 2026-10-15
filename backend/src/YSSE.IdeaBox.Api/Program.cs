@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -15,7 +16,9 @@ using Serilog.Events;
 using YSSE.IdeaBox.Api.Common;
 using YSSE.IdeaBox.Api.Health;
 using YSSE.IdeaBox.Api.Middleware;
+using YSSE.IdeaBox.Api.Hubs;
 using YSSE.IdeaBox.Api.Security;
+using YSSE.IdeaBox.Api.Services;
 using YSSE.IdeaBox.Application;
 using YSSE.IdeaBox.Application.Abstractions;
 using YSSE.IdeaBox.Infrastructure;
@@ -42,6 +45,19 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+
+// Real-time notifications. Uses the in-process SignalR backplane by default; when a
+// Redis connection string is configured it also wires a Redis cache/backplane so a
+// multi-instance deployment stays consistent.
+var signalRBuilder = builder.Services.AddSignalR();
+builder.Services.AddScoped<IRealtimeNotifier, SignalRRealtimeNotifier>();
+
+var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
+if (!string.IsNullOrWhiteSpace(redisConnectionString))
+{
+    builder.Services.AddStackExchangeRedisCache(options => options.Configuration = redisConnectionString);
+    signalRBuilder.AddStackExchangeRedis(redisConnectionString);
+}
 
 // ------------------------------------------------------------------ controllers + validation envelope
 builder.Services.AddScoped<FluentValidationFilter>();
@@ -95,10 +111,18 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // ------------------------------------------------------------------ authentication
+var isDevelopment = builder.Environment.IsDevelopment();
 var jwtKey = builder.Configuration["Jwt:Key"];
 if (string.IsNullOrWhiteSpace(jwtKey))
 {
-    jwtKey = "ysse-ideabox-development-signing-key-please-change-me";
+    throw new InvalidOperationException(
+        "Jwt:Key is not configured. Provide a strong signing key through configuration, " +
+        "user-secrets, or environment variables (Jwt__Key).");
+}
+
+if (!isDevelopment && jwtKey.Length < 32)
+{
+    throw new InvalidOperationException("Jwt:Key must be at least 32 characters outside Development.");
 }
 
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "YSSE.IdeaBox";
@@ -131,6 +155,11 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("ScreeningReviewer", policy => policy.RequireRole("ScreeningReviewer", "Administrator"));
     options.AddPolicy("OpportunitySeeker", policy => policy.RequireRole("Entrepreneur", "Investor", "Mentor"));
 });
+
+// Permission-based policies ("users.read", "roles.manage", …) are produced on demand
+// from the Permissions catalog and enforced by the permission handler.
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
 // ------------------------------------------------------------------ cors
 var allowedOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>()
@@ -235,6 +264,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<NotificationHub>("/hubs/notifications");
 app.MapGet("/", () => Results.Json(new { name = "YSSE Idea Box API", status = "ok", version = "v1" }));
 app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
@@ -246,6 +276,6 @@ app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.Health
 });
 
 // ------------------------------------------------------------------ migrate + seed
-await app.Services.InitializeAsync(app.Environment.IsDevelopment());
+await app.Services.InitializeAsync(isDevelopment);
 
 app.Run();

@@ -1,8 +1,7 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Lightbulb } from 'lucide-react'
-import { useResetPassword } from '../hooks'
+import { useResetPassword } from '@/features/auth/hooks'
 import { resetPasswordSchema, toErrorMessage } from '@/lib/validation'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { Button } from '@/components/ui/button'
@@ -10,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { FormField } from '@/components/ui/form-field'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { APP_NAME } from '@/config/constants'
+import { Logo } from '@/components/shared/Logo'
 
 export default function ResetPasswordPage() {
   useDocumentTitle('Set a new password')
@@ -41,9 +41,7 @@ export default function ResetPasswordPage() {
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-6">
       <div className="flex flex-col items-center gap-2 text-center">
-        <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <Lightbulb className="h-6 w-6" aria-hidden="true" />
-        </span>
+        <Logo size="lg" />
         <h1 className="text-2xl font-bold">Set a new password</h1>
         <p className="text-sm text-muted-foreground">
           Enter the reset code from your email and choose a new password for {APP_NAME}.

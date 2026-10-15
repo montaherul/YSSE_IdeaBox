@@ -44,6 +44,27 @@ public record LeaderboardIdeaDto
     public long VoteCount { get; init; }
 }
 
+/// <summary>Monthly "top three" snapshot resolved from the current/active voting period.</summary>
+public record MonthlyTopDto
+{
+    public int? VotingPeriodId { get; init; }
+    public string PeriodLabel { get; init; } = string.Empty;
+    public IReadOnlyList<LeaderboardIdeaDto> Ideas { get; init; } = Array.Empty<LeaderboardIdeaDto>();
+}
+
+public record MonthlyAnnounceRequest
+{
+    [MaxLength(1000)]
+    public string? Message { get; init; }
+}
+
+/// <summary>Result of announcing the monthly top-three (appreciation) to contributors.</summary>
+public record RecognitionResultDto
+{
+    public string PeriodLabel { get; init; } = string.Empty;
+    public int NotifiedCount { get; init; }
+}
+
 public record IdeaMakerLeaderboardDto
 {
     public int Rank { get; init; }

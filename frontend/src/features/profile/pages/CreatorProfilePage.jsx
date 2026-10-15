@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
 import { MapPin, Globe, Wrench, HelpCircle, Sparkles, CalendarClock } from 'lucide-react'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
-import { useCreatorProfileByUser } from '../hooks'
+import { useCreatorProfileByUser } from '@/features/profile/hooks'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { PageSkeleton } from '@/components/shared/LoadingSkeleton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'

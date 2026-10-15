@@ -46,11 +46,6 @@ internal static class CurrentUserGuard
         user.UserId ?? throw new UnauthorizedException();
 }
 
-internal static class RoleText
-{
-    public static bool TryParse(string? value, out RoleName role) =>
-        Enum.TryParse(value, ignoreCase: true, out role) && Enum.IsDefined(role);
-}
 
 /// <summary>
 /// Idea lifecycle transition table (SRS §7.3). Any transition not listed is rejected.

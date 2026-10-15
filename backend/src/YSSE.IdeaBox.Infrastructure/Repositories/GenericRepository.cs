@@ -7,19 +7,14 @@ namespace YSSE.IdeaBox.Infrastructure.Repositories;
 
 /// <summary>
 /// Single generic repository implementation. Standard CRUD uses EF Core via the
-/// scoped context; complex/reporting reads execute through the Dapper query executor.
+/// scoped context. Reporting SQL lives in the Dapper-backed query classes.
 /// </summary>
 public sealed class GenericRepository<TEntity> : IGenericRepository<TEntity>
     where TEntity : class
 {
     private readonly AppDbContext _context;
-    private readonly ISqlQueryExecutor _queryExecutor;
 
-    public GenericRepository(AppDbContext context, ISqlQueryExecutor queryExecutor)
-    {
-        _context = context;
-        _queryExecutor = queryExecutor;
-    }
+    public GenericRepository(AppDbContext context) => _context = context;
 
     private DbSet<TEntity> Set => _context.Set<TEntity>();
 
@@ -45,8 +40,4 @@ public sealed class GenericRepository<TEntity> : IGenericRepository<TEntity>
     public void Remove(TEntity entity) => Set.Remove(entity);
 
     public void RemoveRange(IEnumerable<TEntity> entities) => Set.RemoveRange(entities);
-
-    public async Task<IReadOnlyList<TResult>> ExecuteQueryAsync<TResult>(
-        string sql, object? parameters = null, CancellationToken ct = default)
-        => await _queryExecutor.QueryAsync<TResult>(sql, parameters, ct);
 }

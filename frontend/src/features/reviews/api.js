@@ -10,8 +10,9 @@ export const reviewsApi = {
   remove: (id) => api.delete(`/reviews/${id}`),
   moderate: (id, payload) => api.post(`/reviews/${id}/moderate`, payload),
 
-  comments: (ideaId) => api.get(`/ideas/${ideaId}/comments`),
+  comments: (ideaId, params) => api.getPaged(`/ideas/${ideaId}/comments`, { params }),
   createComment: (ideaId, payload) => api.post(`/ideas/${ideaId}/comments`, payload),
+  updateComment: (id, payload) => api.put(`/comments/${id}`, payload),
   deleteComment: (id) => api.delete(`/comments/${id}`),
   moderateComment: (id, payload) => api.post(`/comments/${id}/moderate`, payload),
 }

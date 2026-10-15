@@ -13,11 +13,13 @@ public sealed class NotificationDispatcher : INotificationDispatcher
 {
     private readonly IAppDbContext _db;
     private readonly IDateTimeProvider _clock;
+    private readonly IRealtimeNotifier _realtime;
 
-    public NotificationDispatcher(IAppDbContext db, IDateTimeProvider clock)
+    public NotificationDispatcher(IAppDbContext db, IDateTimeProvider clock, IRealtimeNotifier realtime)
     {
         _db = db;
         _clock = clock;
+        _realtime = realtime;
     }
 
     public async Task NotifyAsync(int userId, NotificationType type, string title, string body,
@@ -35,7 +37,7 @@ public sealed class NotificationDispatcher : INotificationDispatcher
             }
         }
 
-        await _db.Notifications.AddAsync(new Notification
+        var notification = new Notification
         {
             UserId = userId,
             Type = type,
@@ -45,8 +47,20 @@ public sealed class NotificationDispatcher : INotificationDispatcher
             IsEssential = essential,
             IsRead = false,
             CreatedAt = _clock.UtcNow
-        }, ct);
+        };
 
+        await _db.Notifications.AddAsync(notification, ct);
         await _db.SaveChangesAsync(ct);
+
+        // Best-effort real-time push; failures must never break the notification write.
+        await _realtime.NotifyUserAsync(userId, "notification", new
+        {
+            id = notification.Id,
+            type = type.ToString(),
+            title,
+            body,
+            linkUrl,
+            createdAt = notification.CreatedAt
+        }, ct);
     }
 }

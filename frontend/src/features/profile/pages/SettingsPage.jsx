@@ -1,10 +1,18 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { LogOut, Save, Settings2, UserRound } from 'lucide-react'
+import { LogOut, Save, Settings2, Trash2, Upload, UserRound } from 'lucide-react'
+import { toast } from 'sonner'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { memberProfileSchema, toErrorMessage } from '@/lib/validation'
-import { useMemberProfile, useUpdateMemberProfile } from '../hooks'
+import {
+  useMemberProfile,
+  useRemoveAvatar,
+  useUpdateMemberProfile,
+  useUploadAvatar,
+} from '@/features/profile/hooks'
+import { mediaUrl, convertImageToWebp } from '@/lib/media'
+import { UserAvatar } from '@/components/shared/UserAvatar'
 import {
   useNotificationPreferences,
   useUpdateNotificationPreference,
@@ -23,8 +31,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 export default function SettingsPage() {
   useDocumentTitle('Settings')
   const [confirmLogout, setConfirmLogout] = useState(false)
+  const [converting, setConverting] = useState(false)
+  const avatarInputRef = useRef(null)
   const { data: profile, isLoading } = useMemberProfile()
   const update = useUpdateMemberProfile()
+  const uploadAvatar = useUploadAvatar()
+  const removeAvatar = useRemoveAvatar()
   const prefs = useNotificationPreferences()
   const updatePref = useUpdateNotificationPreference()
   const logout = useLogout()
@@ -36,7 +48,6 @@ export default function SettingsPage() {
       biography: profile?.biography ?? '',
       skills: profile?.skills ?? '',
       interests: profile?.interests ?? '',
-      imageUrl: profile?.imageUrl ?? '',
       preferredLanguage: profile?.preferredLanguage ?? 'en',
     },
   })
@@ -51,6 +62,22 @@ export default function SettingsPage() {
     }
   }
 
+  const handleAvatarFile = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    try {
+      setConverting(true)
+      const webp = await convertImageToWebp(file)
+      await uploadAvatar.mutateAsync(webp)
+    } catch (err) {
+      toast.error(toErrorMessage(err))
+    } finally {
+      setConverting(false)
+    }
+  }
+
+  const avatarBusy = converting || uploadAvatar.isPending || removeAvatar.isPending
   const prefItems = prefs.data?.items ?? prefs.data ?? []
 
   return (
@@ -93,9 +120,50 @@ export default function SettingsPage() {
                     <Input id="profile-interests" {...form.register('interests')} />
                   </FormField>
                 </div>
-                <FormField id="profile-image" label="Photo URL (optional)" error={form.formState.errors.imageUrl?.message}>
-                  <Input id="profile-image" {...form.register('imageUrl')} placeholder="https://…" />
-                </FormField>
+                <div className="flex flex-wrap items-center gap-4 rounded-md border border-border p-4">
+                  <UserAvatar
+                    name={profile?.displayName}
+                    src={mediaUrl(profile?.imageUrl)}
+                    className="h-16 w-16"
+                  />
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      <input
+                        ref={avatarInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="sr-only"
+                        aria-label="Choose a profile picture"
+                        onChange={handleAvatarFile}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => avatarInputRef.current?.click()}
+                        disabled={avatarBusy}
+                      >
+                        <Upload className="h-4 w-4" aria-hidden="true" />
+                        {avatarBusy ? 'Uploading…' : 'Upload picture'}
+                      </Button>
+                      {profile?.imageUrl ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeAvatar.mutate()}
+                          disabled={avatarBusy}
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          Remove
+                        </Button>
+                      ) : null}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      JPG or PNG up to 5 MB. Converted to WebP in your browser before upload.
+                    </p>
+                  </div>
+                </div>
                 <Button type="submit" disabled={update.isPending}>
                   <Save className="h-4 w-4" aria-hidden="true" />
                   {update.isPending ? 'Saving…' : 'Save profile'}

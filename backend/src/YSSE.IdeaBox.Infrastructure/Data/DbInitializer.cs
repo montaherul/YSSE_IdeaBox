@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using YSSE.IdeaBox.Application.Abstractions;
+using YSSE.IdeaBox.Application.Common;
 using YSSE.IdeaBox.Domain.Entities;
 using YSSE.IdeaBox.Domain.Enums;
 
@@ -13,16 +14,46 @@ namespace YSSE.IdeaBox.Infrastructure.Data;
 /// </summary>
 public static class DbInitializer
 {
-    private static readonly string[] PermissionCodes =
-    {
-        "idea.publish",
-        "user.manage",
-        "voting.configure",
-        "moderation.manage",
-        "audit.view",
-        "setting.manage",
-        "category.manage"
-    };
+    private static readonly string[] PermissionCodes = Permissions.All;
+
+    /// <summary>
+    /// Default permission grants per built-in role. Every user holds <see cref="SystemRoles.Member"/>,
+    /// so it carries the baseline self-service permissions; staff roles add their extra grants.
+    /// Authorization resolves solely through role permissions, so this mapping is what makes
+    /// policy-protected self-service endpoints usable for regular members.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, string[]> DefaultRolePermissions =
+        new Dictionary<string, string[]>
+        {
+            [SystemRoles.Member] =
+            [
+                Permissions.IdeasRead, Permissions.IdeasCreate, Permissions.IdeasUpdate, Permissions.IdeasDelete,
+                Permissions.ProblemsRead, Permissions.ProblemsCreate, Permissions.ProblemsUpdate,
+                Permissions.ReviewsRead, Permissions.ReviewsCreate, Permissions.ReviewsUpdate, Permissions.ReviewsDelete,
+                Permissions.VotingRead, Permissions.VotingCast,
+                Permissions.MarketplaceRead, Permissions.MarketplaceCreate, Permissions.MarketplaceUpdate, Permissions.MarketplaceDelete, Permissions.MarketplaceManage,
+                Permissions.MessagesRead, Permissions.MessagesSend, Permissions.MessagesUpdate, Permissions.MessagesDelete,
+                Permissions.InquiriesRead, Permissions.InquiriesCreate, Permissions.InquiriesUpdate, Permissions.InquiriesDelete, Permissions.InquiriesManage,
+                Permissions.OutcomesRead, Permissions.OutcomesCreate, Permissions.OutcomesUpdate, Permissions.OutcomesDelete,
+                Permissions.ProjectsRead, Permissions.ProjectsUpdate, Permissions.ProjectsDelete,
+                Permissions.NotificationsRead, Permissions.NotificationsDelete, Permissions.NotificationsManage,
+                Permissions.ProfilesRead, Permissions.ProfilesUpdate,
+                Permissions.CategoriesRead, Permissions.TagsRead
+            ],
+            [SystemRoles.Moderator] =
+            [
+                Permissions.ProblemsModerate, Permissions.ReviewsModerate, Permissions.ReviewsDelete,
+                Permissions.MessagesDelete, Permissions.InquiriesDelete, Permissions.OutcomesDelete,
+                Permissions.NotificationsDelete,
+                Permissions.ContentReportsRead, Permissions.ContentReportsManage,
+                Permissions.ScreeningRead, Permissions.ScreeningDecide
+            ],
+            [SystemRoles.ScreeningReviewer] =
+            [
+                Permissions.ScreeningRead, Permissions.ScreeningDecide, Permissions.IdeasScreen, Permissions.IdeaAttachmentsRead
+            ],
+            [SystemRoles.Administrator] = Permissions.All
+        };
 
     private static readonly string[] CategoryNames =
     {
@@ -34,7 +65,7 @@ public static class DbInitializer
         "Solar", "Water", "AI", "Education", "Recycling", "Mobility", "Health", "Finance", "Youth", "Climate"
     };
 
-    public static async Task InitializeAsync(this IServiceProvider services, bool migrate, CancellationToken ct = default)
+    public static async Task InitializeAsync(this IServiceProvider services, bool isDevelopment, CancellationToken ct = default)
     {
         using var scope = services.CreateScope();
         var provider = scope.ServiceProvider;
@@ -45,14 +76,24 @@ public static class DbInitializer
         var clock = provider.GetRequiredService<IDateTimeProvider>();
         var now = clock.UtcNow;
 
-        if (migrate)
+        if (isDevelopment)
         {
             await db.Database.MigrateAsync(ct);
         }
 
+        // Reference data required for authorization and platform configuration in every environment.
         await SeedRolesAsync(db, now, ct);
         await SeedPermissionsAsync(db, now, ct);
         await SeedPlatformSettingsAsync(db, now, ct);
+
+        if (!isDevelopment)
+        {
+            return;
+        }
+
+        // Development-only demo data: known-password accounts and sample content for the SPA.
+        // Never seeded outside Development, where it would create predictable credentials.
+        // Only the seeded demo accounts keep a known password; real users are never modified.
         await SeedUsersAsync(db, hasher, now, ct);
         await SeedCategoriesAsync(db, now, ct);
         await SeedTagsAsync(db, now, ct);
@@ -70,9 +111,9 @@ public static class DbInitializer
     {
         var existing = await db.Roles.Select(r => r.Name).ToListAsync(ct);
 
-        foreach (var role in Enum.GetValues<RoleName>())
+        foreach (var role in SystemRoles.All)
         {
-            if (!existing.Contains(role))
+            if (!existing.Contains(role, StringComparer.OrdinalIgnoreCase))
             {
                 db.Roles.Add(new Role { Name = role, Description = Humanize(role), CreatedAt = now });
             }
@@ -95,27 +136,35 @@ public static class DbInitializer
 
         await db.SaveChangesAsync(ct);
 
-        var adminRoleId = await db.Roles.Where(r => r.Name == RoleName.Administrator).Select(r => r.Id).FirstOrDefaultAsync(ct);
-        if (adminRoleId == 0)
-        {
-            return;
-        }
-
-        var permissionIds = await db.Permissions
+        var permissionIdByCode = await db.Permissions
             .Where(p => PermissionCodes.Contains(p.Code))
-            .Select(p => p.Id)
-            .ToListAsync(ct);
+            .ToDictionaryAsync(p => p.Code, p => p.Id, ct);
 
-        var granted = await db.RolePermissions
-            .Where(rp => rp.RoleId == adminRoleId)
-            .Select(rp => rp.PermissionId)
-            .ToListAsync(ct);
-
-        foreach (var permissionId in permissionIds)
+        foreach (var (role, codes) in DefaultRolePermissions)
         {
-            if (!granted.Contains(permissionId))
+            var roleId = await db.Roles.Where(r => r.Name == role).Select(r => r.Id).FirstOrDefaultAsync(ct);
+            if (roleId == 0)
             {
-                db.RolePermissions.Add(new RolePermission { RoleId = adminRoleId, PermissionId = permissionId, CreatedAt = now });
+                continue;
+            }
+
+            var desiredIds = codes
+                .Where(permissionIdByCode.ContainsKey)
+                .Select(code => permissionIdByCode[code])
+                .Distinct()
+                .ToList();
+
+            var granted = await db.RolePermissions
+                .Where(rp => rp.RoleId == roleId)
+                .Select(rp => rp.PermissionId)
+                .ToListAsync(ct);
+
+            foreach (var permissionId in desiredIds)
+            {
+                if (!granted.Contains(permissionId))
+                {
+                    db.RolePermissions.Add(new RolePermission { RoleId = roleId, PermissionId = permissionId, CreatedAt = now });
+                }
             }
         }
 
@@ -126,6 +175,7 @@ public static class DbInitializer
     {
         var defaults = new (string Key, string Value, string Description)[]
         {
+            ("Theme.PrimaryColor", "#2db97c", "Primary brand color used across the platform (hex)."),
             ("review.policy", "manual_moderation", "Community reviews are moderated before publication."),
             ("data.retention.days", "365", "Days visitor/analytics data is retained before purging."),
             ("guest.review.policy", "one_review_per_idea", "Best-effort limit for anonymous guest reviews."),
@@ -149,30 +199,31 @@ public static class DbInitializer
 
     private static async Task SeedUsersAsync(AppDbContext db, IPasswordHasher hasher, DateTime now, CancellationToken ct)
     {
-        var admin = await EnsureUserAsync(db, hasher, "admin@ysse.local", "Admin@12345", "Platform Administrator", now, ct);
-        await EnsureUserRoleAsync(db, admin.Id, RoleName.Administrator, now, ct);
-        await EnsureUserRoleAsync(db, admin.Id, RoleName.ScreeningReviewer, now, ct);
-        await EnsureUserRoleAsync(db, admin.Id, RoleName.Moderator, now, ct);
-        await EnsureUserRoleAsync(db, admin.Id, RoleName.Member, now, ct);
+        // Each demo account has its own password so no single credential unlocks every role.
+        var admin = await EnsureUserAsync(db, hasher, "admin@ysse.local", "Admin@123", "Platform Administrator", now, ct);
+        await EnsureUserRoleAsync(db, admin.Id, SystemRoles.Administrator, now, ct);
+        await EnsureUserRoleAsync(db, admin.Id, SystemRoles.ScreeningReviewer, now, ct);
+        await EnsureUserRoleAsync(db, admin.Id, SystemRoles.Moderator, now, ct);
+        await EnsureUserRoleAsync(db, admin.Id, SystemRoles.Member, now, ct);
 
-        var creator = await EnsureUserAsync(db, hasher, "creator@ysse.local", "Creator@12345", "Amina Yusuf", now, ct);
-        await EnsureUserRoleAsync(db, creator.Id, RoleName.Creator, now, ct);
-        await EnsureUserRoleAsync(db, creator.Id, RoleName.Member, now, ct);
+        var creator = await EnsureUserAsync(db, hasher, "creator@ysse.local", "Creator@123", "Amina Yusuf", now, ct);
+        await EnsureUserRoleAsync(db, creator.Id, SystemRoles.Creator, now, ct);
+        await EnsureUserRoleAsync(db, creator.Id, SystemRoles.Member, now, ct);
 
-        var member = await EnsureUserAsync(db, hasher, "member@ysse.local", "Member@12345", "Daniel Okoro", now, ct);
-        await EnsureUserRoleAsync(db, member.Id, RoleName.Member, now, ct);
+        var member = await EnsureUserAsync(db, hasher, "member@ysse.local", "Member@123", "Daniel Okoro", now, ct);
+        await EnsureUserRoleAsync(db, member.Id, SystemRoles.Member, now, ct);
 
-        var investor = await EnsureUserAsync(db, hasher, "investor@ysse.local", "Investor@12345", "Grace Mensah", now, ct);
-        await EnsureUserRoleAsync(db, investor.Id, RoleName.Investor, now, ct);
-        await EnsureUserRoleAsync(db, investor.Id, RoleName.Member, now, ct);
+        var investor = await EnsureUserAsync(db, hasher, "investor@ysse.local", "Investor@123", "Grace Mensah", now, ct);
+        await EnsureUserRoleAsync(db, investor.Id, SystemRoles.Investor, now, ct);
+        await EnsureUserRoleAsync(db, investor.Id, SystemRoles.Member, now, ct);
 
-        var entrepreneur = await EnsureUserAsync(db, hasher, "entrepreneur@ysse.local", "Entrepreneur@12345", "Samuel Adeyemi", now, ct);
-        await EnsureUserRoleAsync(db, entrepreneur.Id, RoleName.Entrepreneur, now, ct);
-        await EnsureUserRoleAsync(db, entrepreneur.Id, RoleName.Member, now, ct);
+        var entrepreneur = await EnsureUserAsync(db, hasher, "entrepreneur@ysse.local", "Entrepreneur@123", "Samuel Adeyemi", now, ct);
+        await EnsureUserRoleAsync(db, entrepreneur.Id, SystemRoles.Entrepreneur, now, ct);
+        await EnsureUserRoleAsync(db, entrepreneur.Id, SystemRoles.Member, now, ct);
 
-        var moderator = await EnsureUserAsync(db, hasher, "moderator@ysse.local", "Moderator@12345", "Fatima Bello", now, ct);
-        await EnsureUserRoleAsync(db, moderator.Id, RoleName.Moderator, now, ct);
-        await EnsureUserRoleAsync(db, moderator.Id, RoleName.Member, now, ct);
+        var moderator = await EnsureUserAsync(db, hasher, "moderator@ysse.local", "Moderator@123", "Fatima Bello", now, ct);
+        await EnsureUserRoleAsync(db, moderator.Id, SystemRoles.Moderator, now, ct);
+        await EnsureUserRoleAsync(db, moderator.Id, SystemRoles.Member, now, ct);
     }
 
     private static async Task<User> EnsureUserAsync(AppDbContext db, IPasswordHasher hasher, string email,
@@ -181,6 +232,11 @@ public static class DbInitializer
         var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
         if (user is not null)
         {
+            // Keep the demo/seeded account's known password in sync. This helper is used
+            // only for seeded accounts; real user passwords are never reset here.
+            user.PasswordHash = hasher.Hash(password);
+            user.UpdatedAt = now;
+            await db.SaveChangesAsync(ct);
             return user;
         }
 
@@ -208,7 +264,7 @@ public static class DbInitializer
         return user;
     }
 
-    private static async Task EnsureUserRoleAsync(AppDbContext db, int userId, RoleName role, DateTime now, CancellationToken ct)
+    private static async Task EnsureUserRoleAsync(AppDbContext db, int userId, string role, DateTime now, CancellationToken ct)
     {
         var roleId = await db.Roles.Where(r => r.Name == role).Select(r => r.Id).FirstOrDefaultAsync(ct);
         if (roleId == 0)
@@ -700,8 +756,6 @@ public static class DbInitializer
         var slug = builder.ToString().Trim('-');
         return slug.Length == 0 ? Guid.NewGuid().ToString("N")[..12] : slug;
     }
-
-    private static string Humanize(RoleName role) => Humanize(role.ToString());
 
     private static string Humanize(string value)
     {

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using YSSE.IdeaBox.Application.Abstractions;
 using YSSE.IdeaBox.Application.Abstractions.Services;
+using YSSE.IdeaBox.Application.Common;
 using YSSE.IdeaBox.Application.Dtos;
 
 namespace YSSE.IdeaBox.Api.Controllers;
@@ -44,6 +45,7 @@ public sealed class ReviewsController : ApiControllerBase
         => OkData(await _reviews.GetCountsAsync(ideaId, ct));
 
     [HttpPost("ideas/{ideaId:int}/reviews")]
+    [Authorize(Policy = Permissions.ReviewsCreate)]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> Create(int ideaId, [FromBody] ReviewCreateRequest request, CancellationToken ct)
         => OkResult(await _reviews.SubmitRegisteredAsync(ideaId, request, ct));
@@ -55,20 +57,23 @@ public sealed class ReviewsController : ApiControllerBase
         => OkResult(await _reviews.SubmitGuestAsync(ideaId, request, ResolveGuestContext(), ct));
 
     [HttpGet("reviews/mine")]
+    [Authorize(Policy = Permissions.ReviewsRead)]
     public async Task<IActionResult> Mine([FromQuery] int page = 1,
         [FromQuery] int pageSize = Application.Common.Pagination.DefaultPageSize, CancellationToken ct = default)
         => Paged(await _reviews.GetMineAsync(page, pageSize, ct));
 
     [HttpPatch("reviews/{id:int}")]
+    [Authorize(Policy = Permissions.ReviewsUpdate)]
     public async Task<IActionResult> Edit(int id, [FromBody] ReviewCreateRequest request, CancellationToken ct)
         => OkResult(await _reviews.EditOwnAsync(id, request, ct));
 
     [HttpDelete("reviews/{id:int}")]
+    [Authorize(Policy = Permissions.ReviewsDelete)]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
         => OkResult(await _reviews.DeleteOwnAsync(id, ct));
 
     [HttpPost("reviews/{id:int}/moderate")]
-    [Authorize(Policy = "Moderator")]
+    [Authorize(Policy = Permissions.ReviewsModerate)]
     public async Task<IActionResult> Moderate(int id, [FromBody] ReviewModerateRequest request, CancellationToken ct)
         => OkResult(await _reviews.ModerateAsync(id, request, ct));
 

@@ -16,19 +16,25 @@ public sealed class IdeaService : IIdeaService
     private readonly IDateTimeProvider _clock;
     private readonly IAuditWriter _audit;
     private readonly INotificationDispatcher _notifications;
+    private readonly IFileStorage _files;
+    private readonly IUserPermissionService _permissions;
 
     public IdeaService(
         IUnitOfWork db,
         ICurrentUserService current,
         IDateTimeProvider clock,
         IAuditWriter audit,
-        INotificationDispatcher notifications)
+        INotificationDispatcher notifications,
+        IFileStorage files,
+        IUserPermissionService permissions)
     {
         _unitOfWork = db;
         _current = current;
         _clock = clock;
         _audit = audit;
         _notifications = notifications;
+        _files = files;
+        _permissions = permissions;
     }
 
     public async Task<PagedResult<IdeaListItemDto>> SearchAsync(IdeaListQuery query, CancellationToken ct = default)
@@ -59,9 +65,10 @@ public sealed class IdeaService : IIdeaService
             throw new NotFoundException("Idea not found.");
         }
 
+        var includeAllAttachments = await CanReadAllAttachmentsAsync(ct);
         var detail = await _unitOfWork.Repository<Idea>().Query()
             .Where(i => i.Id == meta.Id)
-            .Select(IdeaProjections.Detail(_current.UserId))
+            .Select(IdeaProjections.Detail(_current.UserId ?? 0, includeAllAttachments))
             .FirstOrDefaultAsync(ct);
 
         if (detail is null)
@@ -85,9 +92,10 @@ public sealed class IdeaService : IIdeaService
             throw new NotFoundException("Idea not found.");
         }
 
+        var includeAllAttachments = await CanReadAllAttachmentsAsync(ct);
         return await _unitOfWork.Repository<Idea>().Query()
             .Where(i => i.Id == meta.Id)
-            .Select(IdeaProjections.Detail(_current.UserId))
+            .Select(IdeaProjections.Detail(_current.UserId ?? 0, includeAllAttachments))
             .FirstOrDefaultAsync(ct);
     }
 
@@ -217,6 +225,7 @@ public sealed class IdeaService : IIdeaService
         }
 
         ApplyContent(idea, request, category.Id);
+        idea.Slug = await UniqueSlugAsync(Slug.From(idea.Title, "idea"), ct, idea.Id);
         await ReplaceTagsAsync(idea, request.Tags, ct);
 
         idea.UpdatedAt = _clock.UtcNow;
@@ -287,6 +296,222 @@ public sealed class IdeaService : IIdeaService
         await _audit.RecordAsync("IdeaDraftDeleted", nameof(Idea), idea.Id.ToString(), null, new { idea.Title }, ct);
         return Result.Ok();
     }
+
+    public async Task<Result> SetFeaturedAsync(int id, bool featured, CancellationToken ct = default)
+    {
+        var idea = await _unitOfWork.Repository<Idea>().Query()
+            .FirstOrDefaultAsync(i => i.Id == id && !i.IsDeleted, ct);
+        if (idea is null)
+        {
+            throw new NotFoundException("Idea not found.");
+        }
+
+        if (featured && idea.Status != IdeaStatus.Published)
+        {
+            return Result.Fail("Only published ideas can be featured.");
+        }
+
+        if (idea.IsFeatured != featured)
+        {
+            idea.IsFeatured = featured;
+            idea.FeaturedAt = featured ? _clock.UtcNow : null;
+            idea.UpdatedAt = _clock.UtcNow;
+            await _unitOfWork.SaveChangesAsync(ct);
+
+            await _audit.RecordAsync(
+                featured ? "IdeaFeatured" : "IdeaUnfeatured",
+                nameof(Idea), idea.Id.ToString(), null, new { idea.Title }, ct);
+        }
+
+        return Result.Ok();
+    }
+
+
+    public async Task<Result<IdeaAttachmentDto>> UploadAttachmentAsync(int ideaId, Stream content, string fileName, string contentType, long length, CancellationToken ct = default)
+    {
+        var userId = _current.RequireUserId();
+        var idea = await _unitOfWork.Repository<Idea>().Query()
+            .Include(i => i.Attachments)
+            .FirstOrDefaultAsync(i => i.Id == ideaId && !i.IsDeleted, ct);
+        if (idea is null)
+        {
+            throw new NotFoundException("Idea not found.");
+        }
+
+        if (idea.CreatorUserId != userId)
+        {
+            throw new ForbiddenException("Only the creator can manage this idea's document.");
+        }
+
+        if (length <= 0)
+        {
+            return Result<IdeaAttachmentDto>.Fail("The selected file is empty.");
+        }
+
+        if (length > UploadLimits.MaxIdeaAttachmentBytes)
+        {
+            return Result<IdeaAttachmentDto>.Fail($"The document must be smaller than {UploadLimits.MaxIdeaAttachmentBytes / (1024 * 1024)} MB.");
+        }
+
+        using var buffer = new MemoryStream(length <= int.MaxValue ? (int)length : 0);
+        await content.CopyToAsync(buffer, ct);
+        var bytes = buffer.ToArray();
+
+        if (!IsPdf(bytes))
+        {
+            return Result<IdeaAttachmentDto>.Fail("Only PDF documents are accepted.");
+        }
+
+        var safeName = Path.GetFileName(fileName);
+        if (string.IsNullOrWhiteSpace(safeName))
+        {
+            safeName = "idea.pdf";
+        }
+
+        buffer.Position = 0;
+        var storagePath = await _files.SaveAsync(buffer, safeName, "application/pdf", ct);
+
+        // Exactly one document per idea: retire any previous attachment (and its file).
+        var previous = idea.Attachments.Where(a => !a.IsDeleted).ToList();
+        foreach (var existing in previous)
+        {
+            existing.IsDeleted = true;
+            existing.DeletedAt = _clock.UtcNow;
+        }
+
+        var attachment = new IdeaAttachment
+        {
+            IdeaId = idea.Id,
+            FileName = safeName,
+            ContentType = "application/pdf",
+            SizeBytes = length,
+            StoragePath = storagePath,
+            CreatedAt = _clock.UtcNow
+        };
+        await _unitOfWork.Repository<IdeaAttachment>().AddAsync(attachment, ct);
+
+        idea.UpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        foreach (var existing in previous)
+        {
+            await _files.DeleteAsync(existing.StoragePath, ct);
+        }
+
+        await _audit.RecordAsync("IdeaAttachmentUploaded", nameof(Idea), idea.Id.ToString(), null, new { attachment.FileName, attachment.SizeBytes }, ct);
+
+        return Result<IdeaAttachmentDto>.Ok(new IdeaAttachmentDto
+        {
+            Id = attachment.Id,
+            FileName = attachment.FileName,
+            ContentType = attachment.ContentType,
+            SizeBytes = attachment.SizeBytes
+        });
+    }
+
+    public async Task<Result> RemoveAttachmentAsync(int ideaId, CancellationToken ct = default)
+    {
+        var userId = _current.RequireUserId();
+        var idea = await _unitOfWork.Repository<Idea>().Query()
+            .Include(i => i.Attachments)
+            .FirstOrDefaultAsync(i => i.Id == ideaId && !i.IsDeleted, ct);
+        if (idea is null)
+        {
+            throw new NotFoundException("Idea not found.");
+        }
+
+        if (idea.CreatorUserId != userId)
+        {
+            throw new ForbiddenException("Only the creator can manage this idea's document.");
+        }
+
+        var current = idea.Attachments.Where(a => !a.IsDeleted).ToList();
+        if (current.Count == 0)
+        {
+            return Result.Ok();
+        }
+
+        foreach (var existing in current)
+        {
+            existing.IsDeleted = true;
+            existing.DeletedAt = _clock.UtcNow;
+        }
+
+        idea.UpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        foreach (var existing in current)
+        {
+            await _files.DeleteAsync(existing.StoragePath, ct);
+        }
+
+        await _audit.RecordAsync("IdeaAttachmentRemoved", nameof(Idea), idea.Id.ToString(), null, null, ct);
+        return Result.Ok();
+    }
+
+    public async Task<IdeaAttachmentDownload?> OpenAttachmentAsync(int ideaId, CancellationToken ct = default)
+    {
+        var meta = await _unitOfWork.Repository<Idea>().Query()
+            .Where(i => i.Id == ideaId && !i.IsDeleted)
+            .Select(i => new { i.Id, i.CreatorUserId })
+            .FirstOrDefaultAsync(ct);
+        if (meta is null)
+        {
+            throw new NotFoundException("Idea not found.");
+        }
+
+        var isOwner = _current.UserId is int uid && uid == meta.CreatorUserId;
+        if (!isOwner && !await CanReadAllAttachmentsAsync(ct))
+        {
+            throw new ForbiddenException("You are not allowed to access this document.");
+        }
+
+        var attachment = await _unitOfWork.Repository<IdeaAttachment>().Query()
+            .Where(a => a.IdeaId == meta.Id && !a.IsDeleted)
+            .OrderByDescending(a => a.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+        if (attachment is null)
+        {
+            throw new NotFoundException("No document is attached to this idea.");
+        }
+
+        var stream = await _files.OpenReadAsync(attachment.StoragePath, ct);
+        if (stream is null)
+        {
+            throw new NotFoundException("The stored document could not be found.");
+        }
+
+        return new IdeaAttachmentDownload(attachment.FileName, attachment.ContentType, stream);
+    }
+
+    private async Task<bool> CanReadAllAttachmentsAsync(CancellationToken ct)
+    {
+        if (!_current.IsAuthenticated || _current.UserId is not int userId)
+        {
+            return false;
+        }
+
+        if (_current.IsAdmin)
+        {
+            return true;
+        }
+
+        var permissions = await _permissions.GetPermissionsAsync(userId, ct);
+        return permissions.Contains(Permissions.IdeaAttachmentsRead);
+    }
+
+    private static bool IsPdf(byte[] bytes)
+    {
+        const int signatureLength = 5;
+        if (bytes.Length < signatureLength)
+        {
+            return false;
+        }
+
+        ReadOnlySpan<byte> signature = stackalloc byte[signatureLength] { 0x25, 0x50, 0x44, 0x46, 0x2D };
+        return bytes.AsSpan(0, signatureLength).SequenceEqual(signature);
+    }
+
 
     public async Task<PagedResult<IdeaListItemDto>> GetMyIdeasAsync(IdeaListQuery query, CancellationToken ct = default)
     {
@@ -385,6 +610,11 @@ public sealed class IdeaService : IIdeaService
             q = q.Where(x => x.Stage == query.Stage.Value);
         }
 
+        if (query.Featured is not null)
+        {
+            q = q.Where(x => x.IsFeatured == query.Featured.Value);
+        }
+
         q = (query.Sort ?? "newest").ToLowerInvariant() switch
         {
             "oldest" => q.OrderBy(x => x.PublishedAt ?? x.CreatedAt),
@@ -399,11 +629,12 @@ public sealed class IdeaService : IIdeaService
     private async Task<Idea?> GetOwnedIdeaAsync(int id, int userId, CancellationToken ct) =>
         await _unitOfWork.Repository<Idea>().Query().FirstOrDefaultAsync(i => i.Id == id && !i.IsDeleted && i.CreatorUserId == userId, ct);
 
-    private async Task<string> UniqueSlugAsync(string baseSlug, CancellationToken ct)
+    private async Task<string> UniqueSlugAsync(string baseSlug, CancellationToken ct, int? excludeIdeaId = null)
     {
         var slug = baseSlug;
         var suffix = 2;
-        while (await _unitOfWork.Repository<Idea>().Query().AnyAsync(i => i.Slug == slug && !i.IsDeleted, ct))
+        while (await _unitOfWork.Repository<Idea>().Query()
+                   .AnyAsync(i => i.Slug == slug && !i.IsDeleted && (excludeIdeaId == null || i.Id != excludeIdeaId), ct))
         {
             slug = $"{baseSlug}-{suffix++}";
         }
@@ -470,7 +701,6 @@ public sealed class IdeaService : IIdeaService
 
     private static void ApplyContent(Idea idea, IdeaCreateRequest request, int categoryId)
     {
-        idea.Slug = Slug.From(request.Title, "idea");
         idea.Title = request.Title.Trim();
         idea.ShortSummary = request.ShortSummary?.Trim() ?? string.Empty;
         idea.ProblemStatement = request.ProblemStatement;

@@ -25,6 +25,7 @@ public class IdeaConfiguration : IEntityTypeConfiguration<Idea>
 
         builder.HasIndex(x => x.Slug).IsUnique();
         builder.HasIndex(x => new { x.Status, x.PublishedAt });
+        builder.HasIndex(x => new { x.IsFeatured, x.Status });
         builder.HasIndex(x => x.CategoryId);
         builder.HasIndex(x => x.CreatorUserId);
 

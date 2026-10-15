@@ -18,6 +18,15 @@ export function truncate(str, maxLength = 120) {
   return `${str.slice(0, maxLength - 1).trimEnd()}…`
 }
 
+/** Convert a display name into a URL-safe slug (lowercase, hyphenated). */
+export function slugify(value) {
+  return String(value ?? '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
 /** A tiny controlled "string must be one of" guard used for select props. */
 export function oneOf(value, options, fallback) {
   return options.includes(value) ? value : fallback

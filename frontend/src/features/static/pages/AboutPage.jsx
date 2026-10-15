@@ -1,8 +1,7 @@
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
-import { PageHeader } from '@/components/shared/PageHeader'
-import { Card, CardContent } from '@/components/ui/card'
+import { StaticPage } from '@/features/static/components/StaticBlock'
 
-const SECTIONS = [
+const FALLBACK = [
   {
     title: 'Our mission',
     body: 'YSSE Idea Box exists to surface ideas worth pursuing and connect the people behind them with entrepreneurs, mentors and community support. We believe good ideas should be visible, discussable and discoverable.',
@@ -20,18 +19,20 @@ const SECTIONS = [
 export default function AboutPage() {
   useDocumentTitle('About')
   return (
-    <div className="space-y-6">
-      <PageHeader title="About YSSE Idea Box" description="From ideas to entrepreneurship." />
-      <div className="grid gap-4">
-        {SECTIONS.map((s) => (
-          <Card key={s.title}>
-            <CardContent className="space-y-2 p-6">
+    <StaticPage
+      key="about"
+      title="About YSSE Idea Box"
+      description="From ideas to entrepreneurship."
+      fallbackSections={
+        <div className="grid gap-4">
+          {FALLBACK.map((s) => (
+            <div key={s.title} className="rounded-xl border bg-card p-6 space-y-2">
               <h2 className="text-lg font-semibold">{s.title}</h2>
               <p className="text-sm text-muted-foreground">{s.body}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
+            </div>
+          ))}
+        </div>
+      }
+    />
   )
 }

@@ -43,6 +43,34 @@ export function useCreateListing() {
   })
 }
 
+export function useUpdateListing() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }) => marketplaceApi.update(id, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['marketplace'] })
+      toast.success('Listing updated.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
+
+export function useDeleteListing() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => marketplaceApi.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['marketplace'] })
+      toast.success('Listing deleted.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
+
 export function useListingStatus() {
   const qc = useQueryClient()
   return useMutation({

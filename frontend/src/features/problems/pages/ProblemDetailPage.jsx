@@ -1,13 +1,15 @@
-import { Link, useParams } from 'react-router-dom'
-import { ThumbsUp, MapPin, Calendar, Link2 } from 'lucide-react'
+import { useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ThumbsUp, MapPin, Calendar, Link2, Pencil, Trash2 } from 'lucide-react'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermission } from '@/hooks/usePermission'
-import { useProblem, useEndorseProblem, useChangeProblemStatus } from '../hooks'
+import { useProblem, useEndorseProblem, useChangeProblemStatus, useDeleteProblem } from '@/features/problems/hooks'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { PageSkeleton } from '@/components/shared/LoadingSkeleton'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { formatDate, formatCompact } from '@/lib/format'
@@ -16,12 +18,15 @@ const STATUSES = ['Open', 'SolutionsProposed', 'Solved', 'Closed', 'Paused']
 
 export default function ProblemDetailPage() {
   const { id } = useParams()
-  const { isAuthenticated } = useAuth()
+  const navigate = useNavigate()
+  const { isAuthenticated, user } = useAuth()
   const { can } = usePermission()
   const canModerate = can('admin') || can('moderator') || can('reviewer')
   const { data: problem, isLoading, isError, error } = useProblem(id)
   const endorse = useEndorseProblem()
   const changeStatus = useChangeProblemStatus()
+  const remove = useDeleteProblem()
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const title = problem?.title ? `${problem.title} — Problem` : 'Problem'
   useDocumentTitle(title)
 
@@ -29,22 +34,40 @@ export default function ProblemDetailPage() {
   if (isError) return <ErrorState message={error?.message} />
   if (!problem) return <ErrorState title="Problem not found" message="This problem may have been closed or removed." />
 
+  const isAuthor = isAuthenticated && user?.id === problem.authorUserId
+
   return (
     <div className="space-y-6">
       <PageHeader
         title={problem.title}
         description={problem.coarseLocation ? `Location: ${problem.coarseLocation}` : undefined}
         actions={
-          isAuthenticated ? (
-            <Button onClick={() => endorse.mutate(problem.id)} disabled={endorse.isPending}>
-              <ThumbsUp className="h-4 w-4" aria-hidden="true" />
-              Endorse ({formatCompact(problem.endorsementCount ?? 0)})
-            </Button>
-          ) : (
-            <Button asChild>
-              <Link to="/login">Sign in to endorse</Link>
-            </Button>
-          )
+          <div className="flex flex-wrap items-center gap-2">
+            {isAuthor || canModerate ? (
+              <>
+                <Button asChild variant="outline">
+                  <Link to={`/problems/${problem.id}/edit`}>
+                    <Pencil className="h-4 w-4" aria-hidden="true" />
+                    Edit
+                  </Link>
+                </Button>
+                <Button variant="outline" onClick={() => setConfirmingDelete(true)}>
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  Delete
+                </Button>
+              </>
+            ) : null}
+            {isAuthenticated ? (
+              <Button onClick={() => endorse.mutate(problem.id)} disabled={endorse.isPending}>
+                <ThumbsUp className="h-4 w-4" aria-hidden="true" />
+                Endorse ({formatCompact(problem.endorsementCount ?? 0)})
+              </Button>
+            ) : (
+              <Button asChild>
+                <Link to="/login">Sign in to endorse</Link>
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -130,6 +153,19 @@ export default function ProblemDetailPage() {
           ) : null}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        title="Delete this problem?"
+        description="This problem will be removed for everyone. This cannot be undone."
+        confirmLabel="Delete problem"
+        onConfirm={() => {
+          remove.mutate(problem.id, {
+            onSuccess: () => navigate('/problems'),
+          })
+        }}
+      />
     </div>
   )
 }

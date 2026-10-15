@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Users, Lightbulb, Flag, BarChart3 } from 'lucide-react'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
-import { useAdminDashboard } from '../hooks'
+import { useAdminDashboard } from '@/features/admin/hooks'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { PageSkeleton } from '@/components/shared/LoadingSkeleton'

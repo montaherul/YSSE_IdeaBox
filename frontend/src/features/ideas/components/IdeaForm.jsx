@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { X } from 'lucide-react'
+import { FileText, Paperclip, X } from 'lucide-react'
 import { ideaSchema, ideaUpdateSchema } from '@/lib/validation'
 import { useCategories } from '@/features/categories/hooks'
 import { STAGES } from '@/config/constants'
@@ -24,6 +24,9 @@ const ATTRIBUTIONS = [
   { value: 'Public', label: 'Public' },
   { value: 'Anonymous', label: 'Anonymous' },
 ]
+
+/** Maximum size of the single private PDF that may accompany an idea. */
+const MAX_PDF_BYTES = 15 * 1024 * 1024
 
 /**
  * Guided field groupings for the submission wizard. Editing an existing idea uses
@@ -65,7 +68,7 @@ const WIZARD_STEPS = [
     id: 'publish',
     title: 'Attribution',
     description: 'How you appear and tags',
-    fields: ['attribution', 'tags'],
+    fields: ['attribution', 'tags', 'document'],
   },
 ]
 
@@ -79,6 +82,7 @@ export function IdeaForm({
   defaultValues,
   mode = 'create',
   wizard = false,
+  attachment,
   onSubmit,
   submitting = false,
   serverError,
@@ -112,6 +116,11 @@ export function IdeaForm({
   const [tags, setTags] = useState(initial.tags ?? [])
   const [tagInput, setTagInput] = useState('')
 
+  const documentInputRef = useRef(null)
+  const [attachmentFile, setAttachmentFile] = useState(null)
+  const [removeExisting, setRemoveExisting] = useState(false)
+  const [documentError, setDocumentError] = useState('')
+
   const form = useForm({
     resolver: zodResolver(isEdit ? ideaUpdateSchema : ideaSchema),
     defaultValues: initial,
@@ -130,8 +139,39 @@ export function IdeaForm({
     setTagInput('')
   }
 
+  const resetAttachment = () => {
+    setAttachmentFile(null)
+    setRemoveExisting(false)
+    setDocumentError('')
+    if (documentInputRef.current) documentInputRef.current.value = ''
+  }
+
+  const handleDocumentChange = (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+    if (!isPdf) {
+      setDocumentError('Choose a PDF document.')
+      return
+    }
+    if (file.size > MAX_PDF_BYTES) {
+      setDocumentError('The document must be 15 MB or smaller.')
+      return
+    }
+    setDocumentError('')
+    setAttachmentFile(file)
+    setRemoveExisting(false)
+  }
+
   const submit = form.handleSubmit((values) =>
-    onSubmit({ ...values, tags, categoryId: Number(values.categoryId) }),
+    onSubmit({
+      ...values,
+      tags,
+      categoryId: Number(values.categoryId),
+      attachmentFile,
+      removeAttachment: removeExisting,
+    }),
   )
 
   const goNext = async () => {
@@ -348,6 +388,56 @@ export function IdeaForm({
             </FormField>
           ) : null}
 
+          {show('document') ? (
+            <FormField
+              id="idea-document"
+              label="Full document (optional)"
+              hint="One private PDF, up to 15 MB. Only you and authorised reviewers can open it."
+              error={documentError || undefined}
+            >
+              <div className="space-y-2">
+                <input
+                  ref={documentInputRef}
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  className="sr-only"
+                  aria-label="Choose the idea PDF document"
+                  onChange={handleDocumentChange}
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => documentInputRef.current?.click()}>
+                    <Paperclip className="h-4 w-4" aria-hidden="true" />
+                    Choose PDF
+                  </Button>
+                  {attachmentFile ? (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setAttachmentFile(null)}>
+                      Clear selection
+                    </Button>
+                  ) : null}
+                  {!attachmentFile && attachment && !removeExisting ? (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setRemoveExisting(true)}>
+                      Remove current
+                    </Button>
+                  ) : null}
+                </div>
+                {attachmentFile ? (
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                    {attachmentFile.name}
+                    {attachment?.id ? ' (will replace the current document)' : null}
+                  </p>
+                ) : attachment && !removeExisting ? (
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                    Current: {attachment.fileName}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No document attached.</p>
+                )}
+              </div>
+            </FormField>
+          ) : null}
+
           <div className="flex flex-wrap gap-3">
             {isWizard && step > 0 ? (
               <Button type="button" variant="outline" onClick={goBack}>
@@ -366,7 +456,14 @@ export function IdeaForm({
             )}
 
             {!isWizard ? (
-              <Button type="button" variant="outline" onClick={() => form.reset(initial)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  form.reset(initial)
+                  resetAttachment()
+                }}
+              >
                 Reset
               </Button>
             ) : null}

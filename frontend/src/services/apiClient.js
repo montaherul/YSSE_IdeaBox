@@ -236,6 +236,12 @@ export const api = {
   put: (url, data, config) => client.put(url, data, config),
   patch: (url, data, config) => client.patch(url, data, config),
   delete: (url, config) => client.delete(url, config),
+  /**
+   * Multipart POST for file uploads. `Content-Type: undefined` removes the default
+   * JSON header so the browser sets `multipart/form-data` with a boundary.
+   */
+  upload: (url, data, config) =>
+    client.post(url, data, { ...config, headers: { ...config?.headers, 'Content-Type': undefined } }),
 }
 
 export default api

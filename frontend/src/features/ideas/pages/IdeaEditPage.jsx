@@ -1,7 +1,7 @@
 import { useParams } from 'react-router-dom'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
-import { useIdeaById, useUpdateIdea } from '../hooks'
-import { IdeaForm } from '../components/IdeaForm'
+import { useIdeaById, useUpdateIdea } from '@/features/ideas/hooks'
+import { IdeaForm } from '@/features/ideas/components/IdeaForm'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { PageSkeleton } from '@/components/shared/LoadingSkeleton'
@@ -38,9 +38,14 @@ export default function IdeaEditPage() {
     tags: idea.tags ?? [],
   }
 
-  const onSubmit = async (values) => {
+  const onSubmit = async ({ attachmentFile, removeAttachment, ...values }) => {
     try {
-      await update.mutateAsync({ id: idea.id ?? id, payload: values })
+      await update.mutateAsync({
+        id: idea.id ?? id,
+        payload: values,
+        attachmentFile,
+        removeAttachment,
+      })
     } catch (err) {
       throw new Error(toErrorMessage(err), { cause: err })
     }
@@ -49,7 +54,13 @@ export default function IdeaEditPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <PageHeader title="Edit idea" description="Update your idea. Changes may be re-screened." />
-      <IdeaForm mode="edit" defaultValues={defaultValues} onSubmit={onSubmit} submitting={update.isPending} />
+      <IdeaForm
+        mode="edit"
+        defaultValues={defaultValues}
+        attachment={idea.attachments?.[0]}
+        onSubmit={onSubmit}
+        submitting={update.isPending}
+      />
       <BoundaryNotice />
     </div>
   )

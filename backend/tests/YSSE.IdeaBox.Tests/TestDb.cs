@@ -17,6 +17,6 @@ internal static class TestDb
             .UseInMemoryDatabase($"ideabox-tests-{Guid.NewGuid():N}")
             .Options;
         var context = new AppDbContext(options);
-        return (context, new UnitOfWork(context, new ThrowingSqlQueryExecutor()));
+        return (context, new UnitOfWork(context));
     }
 }

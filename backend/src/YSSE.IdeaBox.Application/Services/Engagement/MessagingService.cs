@@ -254,6 +254,49 @@ public sealed class MessagingService : IMessagingService
         return Result<MessageDto>.Ok(ToMessageDto(message, userId, ""));
     }
 
+    public async Task<Result> UpdateMessageAsync(int conversationId, int messageId, MessageUpdateRequest request, CancellationToken ct = default)
+    {
+        var userId = _current.RequireUserId();
+        var message = await _unitOfWork.Repository<Message>().Query()
+            .FirstOrDefaultAsync(m => m.Id == messageId && m.ConversationId == conversationId && !m.IsDeleted, ct);
+        if (message is null)
+        {
+            throw new NotFoundException("Message not found.");
+        }
+
+        if (message.SenderUserId != userId)
+        {
+            throw new ForbiddenException("You can only edit your own messages.");
+        }
+
+        message.Body = request.Body;
+        message.UpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result.Ok();
+    }
+
+    public async Task<Result> DeleteMessageAsync(int conversationId, int messageId, CancellationToken ct = default)
+    {
+        var userId = _current.RequireUserId();
+        var message = await _unitOfWork.Repository<Message>().Query()
+            .FirstOrDefaultAsync(m => m.Id == messageId && m.ConversationId == conversationId && !m.IsDeleted, ct);
+        if (message is null)
+        {
+            throw new NotFoundException("Message not found.");
+        }
+
+        if (message.SenderUserId != userId && !_current.IsModeratorOrAdmin)
+        {
+            throw new ForbiddenException();
+        }
+
+        message.IsDeleted = true;
+        message.DeletedAt = _clock.UtcNow;
+        message.UpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result.Ok();
+    }
+
     public async Task<Result> MarkReadAsync(int conversationId, CancellationToken ct = default)
     {
         var userId = _current.RequireUserId();
@@ -335,24 +378,7 @@ public sealed class MessagingService : IMessagingService
         return Result.Ok();
     }
 
-    public async Task<Result> ReportAsync(ReportCreateRequest request, CancellationToken ct = default)
-    {
-        var reporterId = _current.RequireUserId();
-        await _unitOfWork.Repository<Report>().AddAsync(new Report
-        {
-            TargetType = request.TargetType,
-            TargetId = request.TargetId,
-            ReporterUserId = reporterId,
-            Reason = request.Reason,
-            Details = request.Details,
-            Status = ReportStatus.Open,
-            CreatedAt = _clock.UtcNow
-        }, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
-        return Result.Ok();
-    }
-
-    private async Task<bool> IsBlockedAsync(int blockerId, int blockedId, CancellationToken ct) =>
+private async Task<bool> IsBlockedAsync(int blockerId, int blockedId, CancellationToken ct) =>
         await _unitOfWork.Repository<UserBlock>().Query().AnyAsync(b => b.BlockerUserId == blockerId && b.BlockedUserId == blockedId, ct);
 
     /// <summary>Display name per user, plus alias for anonymous creators.</summary>

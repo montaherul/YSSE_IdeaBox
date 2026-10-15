@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using YSSE.IdeaBox.Application.Abstractions;
 using YSSE.IdeaBox.Application.Common;
+using YSSE.IdeaBox.Application.Dtos;
 using YSSE.IdeaBox.Application.Services.Engagement;
 using YSSE.IdeaBox.Domain.Entities;
 using YSSE.IdeaBox.Domain.Enums;
@@ -341,5 +342,141 @@ public class VotingServiceTests
 
         Assert.True(state.CountIsVisible);
         Assert.Equal(1, state.VoteCount);
+    }
+
+    // ---- Update / delete period (admin CRUD) ----
+
+    [Fact]
+    public async Task UpdatePeriod_requires_admin()
+    {
+        var (_, uow) = TestDb.Create();
+        var period = await AddPeriodAsync(uow);
+        await uow.SaveChangesAsync();
+
+        var svc = CreateService(uow, new FakeCurrentUser { UserId = 1 });
+        var request = new VotingPeriodCreateRequest
+        {
+            Name = "Renamed",
+            StartAt = Now,
+            EndAt = Now.AddDays(10),
+            IsActive = true
+        };
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => svc.UpdatePeriodAsync(period.Id, request));
+    }
+
+    [Fact]
+    public async Task UpdatePeriod_updates_fields()
+    {
+        var (_, uow) = TestDb.Create();
+        var period = await AddPeriodAsync(uow);
+        await uow.SaveChangesAsync();
+
+        var svc = CreateService(uow, new FakeCurrentUser { IsAdmin = true });
+        var request = new VotingPeriodCreateRequest
+        {
+            Name = "Renamed",
+            StartAt = Now,
+            EndAt = Now.AddDays(10),
+            Visibility = VoteVisibility.Live,
+            MinimumAccountAgeDays = 3,
+            RequiresVerifiedAccount = false,
+            IsActive = false
+        };
+
+        var result = await svc.UpdatePeriodAsync(period.Id, request);
+
+        Assert.True(result.Success);
+        var stored = await uow.Repository<VotingPeriod>().Query().FirstAsync(vp => vp.Id == period.Id);
+        Assert.Equal("Renamed", stored.Name);
+        Assert.Equal(VoteVisibility.Live, stored.Visibility);
+        Assert.Equal(3, stored.MinimumAccountAgeDays);
+        Assert.False(stored.RequiresVerifiedAccount);
+        Assert.False(stored.IsActive);
+    }
+
+    [Fact]
+    public async Task UpdatePeriod_validates_window()
+    {
+        var (_, uow) = TestDb.Create();
+        var period = await AddPeriodAsync(uow);
+        await uow.SaveChangesAsync();
+
+        var svc = CreateService(uow, new FakeCurrentUser { IsAdmin = true });
+        var request = new VotingPeriodCreateRequest
+        {
+            Name = "Bad",
+            StartAt = Now.AddDays(5),
+            EndAt = Now,
+            IsActive = true
+        };
+
+        var result = await svc.UpdatePeriodAsync(period.Id, request);
+
+        Assert.False(result.Success);
+        Assert.Equal("The period must end after it starts.", result.Message);
+    }
+
+    [Fact]
+    public async Task UpdatePeriod_missing_period_throws_not_found()
+    {
+        var (_, uow) = TestDb.Create();
+        var svc = CreateService(uow, new FakeCurrentUser { IsAdmin = true });
+
+        await Assert.ThrowsAsync<NotFoundException>(() => svc.UpdatePeriodAsync(999,
+            new VotingPeriodCreateRequest { Name = "X", StartAt = Now, EndAt = Now.AddDays(1) }));
+    }
+
+    [Fact]
+    public async Task DeletePeriod_requires_admin()
+    {
+        var (_, uow) = TestDb.Create();
+        var period = await AddPeriodAsync(uow);
+        await uow.SaveChangesAsync();
+
+        var svc = CreateService(uow, new FakeCurrentUser { UserId = 1 });
+        await Assert.ThrowsAsync<ForbiddenException>(() => svc.DeletePeriodAsync(period.Id));
+    }
+
+    [Fact]
+    public async Task DeletePeriod_with_votes_is_blocked()
+    {
+        var (_, uow) = TestDb.Create();
+        var creator = await AddUserAsync(uow, "Creator");
+        var voter = await AddUserAsync(uow, "Voter");
+        var idea = await AddIdeaAsync(uow, creator.Id, IdeaStatus.Published);
+        var period = await AddPeriodAsync(uow);
+        await uow.SaveChangesAsync();
+
+        await uow.Repository<IdeaVote>().AddAsync(new IdeaVote
+        {
+            IdeaId = idea.Id,
+            UserId = voter.Id,
+            VotingPeriodId = period.Id,
+            IsCounted = true,
+            CreatedAt = Now
+        });
+        await uow.SaveChangesAsync();
+
+        var svc = CreateService(uow, new FakeCurrentUser { IsAdmin = true });
+        var result = await svc.DeletePeriodAsync(period.Id);
+
+        Assert.False(result.Success);
+        Assert.Contains("recorded votes", result.Message);
+        Assert.True(await uow.Repository<VotingPeriod>().Query().AnyAsync(vp => vp.Id == period.Id));
+    }
+
+    [Fact]
+    public async Task DeletePeriod_without_votes_removes_period()
+    {
+        var (_, uow) = TestDb.Create();
+        var period = await AddPeriodAsync(uow);
+        await uow.SaveChangesAsync();
+
+        var svc = CreateService(uow, new FakeCurrentUser { IsAdmin = true });
+        var result = await svc.DeletePeriodAsync(period.Id);
+
+        Assert.True(result.Success);
+        Assert.False(await uow.Repository<VotingPeriod>().Query().AnyAsync(vp => vp.Id == period.Id));
     }
 }
