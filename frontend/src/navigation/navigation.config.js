@@ -3,6 +3,7 @@ import {
   Bell,
   Bookmark,
   BookOpen,
+  Briefcase,
   CalendarDays,
   Compass,
   FileText,
@@ -11,6 +12,7 @@ import {
   Inbox,
   LayoutDashboard,
   Lightbulb,
+  ListChecks,
   MessageSquare,
   Search,
   ShieldCheck,
@@ -23,42 +25,60 @@ import {
 } from 'lucide-react'
 
 /**
- * Navigation definition.
+ * Role-scoped navigation definition.
  *
- * Visibility is resolved in two steps: the group audience gates the section first, then
- * any item-level role/permission requirement filters within it:
- *   - `group.audience` sets the base role audience for the group:
- *       workspace  -> members and moderators (never a full administrator)
- *       member     -> members only (Discover / Connect)
- *       moderator  -> moderators, screening reviewers and administrators
- *       admin      -> administrators only
- *   - `item.roles`       (optional) role keys resolved by `usePermission().can()`
- *   - `item.permissions` (optional) permission codes resolved by `usePermission().canPermission()`
+ * The sidebar is built from this configuration rather than scattering role checks
+ * through components (SRS dashboard rule: configurable navigation).
  *
- * An item is shown only when its group audience matches AND (when declared) the user
- * holds one of its roles/permissions. Requiring the audience as well prevents generic
- * member read permissions (e.g. `categories.read`) from revealing admin-only sections.
- * Because an administrator holds every permission code and matches the staff audiences,
- * an admin sees every staff module without enumerating roles.
+ * Each group declares an `audience`. The Sidebar resolves the current user's roles
+ * into an audience set and renders only the matching groups:
+ *   - member    -> registered member / idea creator (not staff, not a seeker)
+ *   - seeker    -> Entrepreneur / Investor / Mentor (opportunity seekers)
+ *   - browse    -> every authenticated non-administrator (shared discovery links)
+ *   - moderator -> Moderator, Screening Reviewer and Administrator (staff)
+ *   - admin     -> Administrator only
+ *
+ * Within a group, an item may additionally declare `roles` (resolved by
+ * `usePermission().can()`) and/or `permissions` (resolved by `canPermission()`), and is
+ * only shown when the user holds one of them. Administrators hold every permission code,
+ * so they see every staff module without enumerating roles.
  *
  * This only controls UI visibility. The .NET Web API remains the authoritative
  * authorization boundary for every protected operation.
+ *
+ * Note: a few SRS sidebar entries (Recommended for Me, Opportunity Pipeline, Verification
+ * Status, Outcome Reports, My Votes, appeal/history screens, etc.) have no page yet and
+ * are intentionally omitted rather than linked to a non-existent route.
  */
 export const navigationConfig = [
   {
     group: 'Workspace',
-    audience: 'workspace',
+    audience: 'member',
     items: [
       { to: '/app', label: 'Dashboard', icon: LayoutDashboard },
       { to: '/app/ideas', label: 'My ideas', icon: Lightbulb, permissions: ['ideas.read'] },
       { to: '/me/reviews', label: 'My reviews', icon: MessageSquare, permissions: ['reviews.read'] },
       { to: '/me/following', label: 'Following', icon: Bookmark, permissions: ['profiles.read'] },
+      { to: '/marketplace/mine', label: 'My listings', icon: Store, permissions: ['marketplace.read'] },
+      { to: '/app/notifications', label: 'Notifications', icon: Bell, permissions: ['notifications.read'] },
+    ],
+  },
+  {
+    group: 'My Opportunities',
+    audience: 'seeker',
+    items: [
+      { to: '/app', label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/opportunities', label: 'Discover opportunities', icon: Compass },
+      { to: '/inquiries', label: 'My inquiries', icon: Inbox, permissions: ['inquiries.read'] },
+      { to: '/inbox', label: 'Messages', icon: MessageSquare, permissions: ['messages.read'] },
+      { to: '/me/following', label: 'Saved ideas', icon: Bookmark, permissions: ['profiles.read'] },
+      { to: '/entrepreneur/profile', label: 'Business profile', icon: Briefcase, permissions: ['profiles.read'] },
       { to: '/app/notifications', label: 'Notifications', icon: Bell, permissions: ['notifications.read'] },
     ],
   },
   {
     group: 'Discover',
-    audience: 'member',
+    audience: 'browse',
     items: [
       { to: '/ideas', label: 'Discover ideas', icon: Search, permissions: ['ideas.read'] },
       { to: '/problems', label: 'Problems', icon: Users, permissions: ['problems.read'] },
@@ -67,20 +87,11 @@ export const navigationConfig = [
     ],
   },
   {
-    group: 'Connect',
-    audience: 'member',
-    items: [
-      { to: '/inquiries', label: 'Inquiries', icon: Inbox, permissions: ['inquiries.read'] },
-      { to: '/inbox', label: 'Messages', icon: MessageSquare, permissions: ['messages.read'] },
-      { to: '/opportunities', label: 'Entrepreneur portal', icon: Compass, roles: ['entrepreneur'] },
-    ],
-  },
-  {
     group: 'Moderation',
     audience: 'moderator',
     items: [
-      { to: '/review/queue', label: 'Review queue', icon: MessageSquare, permissions: ['screening.read'] },
-      { to: '/admin/moderation', label: 'Moderation', icon: Flag, permissions: ['content.reports.read'] },
+      { to: '/admin/moderation', label: 'Moderation queue', icon: Flag, permissions: ['content.reports.read'] },
+      { to: '/review/queue', label: 'Review queue', icon: ListChecks, permissions: ['screening.read'] },
     ],
   },
   {

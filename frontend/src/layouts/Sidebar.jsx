@@ -12,15 +12,21 @@ export function Sidebar({ onNavigate }) {
   const { can, canAccess } = usePermission()
 
   const isAdmin = can('admin')
-  const isModerator = can('moderator') || can('reviewer')
+  const isModerator = can('moderator')
+  const isReviewer = can('reviewer')
+  const isSeeker = can('entrepreneur')
+  const isStaff = isAdmin || isModerator || isReviewer
+  const isMemberWorkspace = !isStaff && !isSeeker
 
+  // Resolves the current user's roles into the audience set used by navigationConfig.
   // Administrators match the staff audiences, so they see every staff module without
-  // enumerating roles. Member/workspace sections remain hidden from administrators.
+  // enumerating roles; the member/seeker workspaces are hidden from staff and admins.
   const audienceMatches = (audience) => {
     if (audience === 'admin') return isAdmin
-    if (audience === 'moderator') return isModerator || isAdmin
-    if (audience === 'workspace') return !isAdmin
-    if (audience === 'member') return !isAdmin
+    if (audience === 'moderator') return isModerator || isReviewer || isAdmin
+    if (audience === 'seeker') return isSeeker && !isAdmin
+    if (audience === 'member') return isMemberWorkspace
+    if (audience === 'browse') return !isAdmin
     return false
   }
 
@@ -45,7 +51,7 @@ export function Sidebar({ onNavigate }) {
         <span className="text-base font-bold tracking-tight">{APP_NAME}</span>
       </Link>
 
-      {!isAdmin ? (
+      {isMemberWorkspace ? (
         <Button asChild className="w-full justify-start" size="sm">
           <Link to="/app/submissions/new" onClick={onNavigate}>
             <Plus className="h-4 w-4" aria-hidden="true" />
