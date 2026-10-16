@@ -138,9 +138,12 @@ Members post **problem statements** that ideas can address.
 
 Projects turn an approved idea into structured work.
 
-- **Create** requires a live idea (not Draft/Rejected/Withdrawn/Archived/RevisionRequired) and the creator to be a participant with entrepreneur/investor status (admins bypass).
+- **Staff-driven creation**: moderators/admins create a project by selecting a live idea and an entrepreneur/investor lead (`leadUserId`); the idea's creator becomes a participant automatically, and the lead receives a `ProjectAssigned` notification.
+- **Assigned projects on dashboards**: `GET /projects/mine` lists the user's projects (as lead, member, or idea creator); shown on the member dashboard and the entrepreneur portal ("My projects").
+- **Restricted visibility**: project lists and details are visible only to staff and participants (idea creator and project members); all other users receive `403`.
 - **Members, milestones, tasks, and updates** are managed by project owners.
-- Project status: `Planning`, `Active`, `OnHold`, `Completed`, `Archived`.
+- Project status: `Planned`, `InProgress`, `Paused`, `Completed`, `Cancelled`, `Archived`.
+- **Success archive**: admins archive `Completed` projects (`POST /projects/{id}/archive`) as success stories; `Archived` is final and stored with `archivedAt`, and the archive list lives at `/api/v1/projects/archive` (admin UI: `/admin/projects`).
 
 ---
 

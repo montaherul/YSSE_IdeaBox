@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Compass, Eye, EyeOff, Inbox, RefreshCw } from 'lucide-react'
+import { Compass, Eye, EyeOff, FolderKanban, Inbox, RefreshCw } from 'lucide-react'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import {
   useMatches,
@@ -9,6 +9,7 @@ import {
   useRunMatching,
 } from '@/features/entrepreneur/hooks'
 import { IdeaCard } from '@/features/ideas/components/IdeaCard'
+import { MyProjectsPanel } from '@/features/projects/components/MyProjectsPanel'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ErrorState } from '@/components/shared/ErrorState'
@@ -57,6 +58,10 @@ export default function EntrepreneurPortalPage() {
           <TabsTrigger value="watchlist">
             <Eye className="mr-1.5 h-4 w-4" aria-hidden="true" />
             Watchlist
+          </TabsTrigger>
+          <TabsTrigger value="projects">
+            <FolderKanban className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            My projects
           </TabsTrigger>
         </TabsList>
 
@@ -124,6 +129,13 @@ export default function EntrepreneurPortalPage() {
               })}
             </div>
           ) : null}
+        </TabsContent>
+
+        <TabsContent value="projects" className="pt-4">
+          <p className="mb-4 text-sm text-muted-foreground">
+            Projects the YSSE team has assigned to you as a lead or member.
+          </p>
+          <MyProjectsPanel />
         </TabsContent>
       </Tabs>
 

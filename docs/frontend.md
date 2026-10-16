@@ -79,7 +79,8 @@ Route gating uses `guard(<Element />, { roles, permissions })`. Examples: `/proj
 | `/profile`, `/profile/settings` | Own profile | Authenticated |
 | `/creators/:id` | Public creator profile | Public |
 | `/entrepreneur` | Entrepreneur dashboard | Entrepreneur |
-| `/projects`, `/projects/new`, `/projects/:id` | Projects | Public list / `projects.create` |
+| `/projects/new`, `/projects/:id`, `/projects/:id/edit` | Projects | `projects.create` to create; project data is staff/participant-only (server-enforced) |
+| `/admin/projects` | Admin project archive | `projects.manage` |
 | `/screening` | Screening queue | Screening access |
 | `/admin/*` | Administration dashboards | Admin roles/permissions |
 

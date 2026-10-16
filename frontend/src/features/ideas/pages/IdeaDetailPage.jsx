@@ -25,7 +25,7 @@ import { toast } from 'sonner'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermission } from '@/hooks/usePermission'
-import { reviewSchema, projectSchema, toErrorMessage } from '@/lib/validation'
+import { reviewSchema, toErrorMessage } from '@/lib/validation'
 import { downloadBlob } from '@/lib/media'
 import { useIdeaBySlug, useRegisterIdeaView, useSimilarIdeas } from '@/features/ideas/hooks'
 import { ideasApi } from '@/features/ideas/api'
@@ -39,7 +39,7 @@ import {
   useModerateReview,
   useFollowIdea,
 } from '@/features/reviews/hooks'
-import { useIdeaProjects, useCreateProject } from '@/features/projects/hooks'
+import { useIdeaProjects } from '@/features/projects/hooks'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { ErrorState } from '@/components/shared/ErrorState'
 import { PageSkeleton } from '@/components/shared/LoadingSkeleton'
@@ -50,7 +50,6 @@ import { TagList } from '@/components/shared/TagList'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { FormField } from '@/components/ui/form-field'
 import { useFormat } from '@/hooks/useFormat'
@@ -312,25 +311,11 @@ function VotePanel({ idea }) {
 
 function ProjectsSection({ ideaId, canStart }) {
   const { isAuthenticated } = useAuth()
-  const { data: projects } = useIdeaProjects(ideaId)
-  const create = useCreateProject()
-  const [open, setOpen] = useState(false)
+  // Staff and participants only — the API hides this list from everyone else (403), so the section disappears.
+  const { data: projects, isError } = useIdeaProjects(ideaId, isAuthenticated)
   const items = projects?.items ?? projects ?? []
 
-  const form = useForm({
-    resolver: zodResolver(projectSchema),
-    defaultValues: { ideaId, name: '', objectives: '' },
-  })
-
-  const onSubmit = async (values) => {
-    try {
-      await create.mutateAsync(values)
-      form.reset()
-      setOpen(false)
-    } catch (err) {
-      form.setError('root', { message: toErrorMessage(err) })
-    }
-  }
+  if (!isAuthenticated || isError) return null
 
   return (
     <Card>
@@ -339,42 +324,18 @@ function ProjectsSection({ ideaId, canStart }) {
           <FolderKanban className="h-4 w-4" aria-hidden="true" />
           Projects ({items.length})
         </CardTitle>
-        {canStart && isAuthenticated && !open ? (
-          <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Start a project
+        {canStart ? (
+          <Button asChild size="sm" variant="outline">
+            <Link to={`/projects/new?ideaId=${ideaId}`}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Start a project
+            </Link>
           </Button>
         ) : null}
       </CardHeader>
-      <CardContent className="space-y-3">
-        {open ? (
-          <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-3 rounded-lg border p-4">
-            {form.formState.errors.root ? (
-              <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {form.formState.errors.root.message}
-              </p>
-            ) : null}
-            <FormField id={`project-name-${ideaId}`} label="Project name" required error={form.formState.errors.name?.message}>
-              <Input id={`project-name-${ideaId}`} {...form.register('name')} />
-            </FormField>
-            <FormField id={`project-objectives-${ideaId}`} label="Objectives (optional)" error={form.formState.errors.objectives?.message}>
-              <Textarea id={`project-objectives-${ideaId}`} rows={3} {...form.register('objectives')} />
-            </FormField>
-            <div className="flex gap-2">
-              <Button type="submit" size="sm" disabled={create.isPending}>
-                {create.isPending ? 'Creating…' : 'Create'}
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => setOpen(false)}>
-                Cancel
-              </Button>
-            </div>
-          </form>
-        ) : null}
-
-        {items.length === 0 && !open ? (
-          <p className="text-sm text-muted-foreground">
-            No projects yet.{canStart && isAuthenticated ? ' Be the first to start a collaboration.' : ''}
-          </p>
+      <CardContent>
+        {items.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No projects yet.</p>
         ) : (
           <ul aria-label="Projects" className="space-y-2">
             {items.map((project) => (

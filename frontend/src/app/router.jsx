@@ -159,6 +159,7 @@ export const router = createBrowserRouter([
           { path: '/admin/content', element: guard(<AdminContentPage />, { permissions: ['staticcontent.read'] }) },
           { path: '/admin/voting', element: guard(<AdminVotingPage />, { permissions: ['votingperiods.read'] }) },
           { path: '/admin/featured', element: guard(<AdminFeaturedPage />, { permissions: ['ideas.feature'] }) },
+          { path: '/admin/projects', element: guard(<AdminProjectArchivePage />, { permissions: ['projects.manage'] }) },
           { path: '/admin/sessions', element: guard(<AdminVotingPage />, { permissions: ['votingperiods.read'] }) },
           { path: '/admin/audit', element: guard(<AdminAuditPage />, { permissions: ['audit.read'] }) },
           { path: '/admin/reports', element: guard(<AdminAuditPage />, { permissions: ['audit.read'] }) },
@@ -289,6 +290,9 @@ function ProjectCreatePage() {
 }
 function EditProjectPage() {
   return wrapLazy(() => import('@/features/projects/pages/EditProjectPage.jsx'))
+}
+function AdminProjectArchivePage() {
+  return wrapLazy(() => import('@/features/projects/pages/AdminProjectArchivePage.jsx'))
 }
 function ReviewQueuePage() {
   return wrapLazy(() => import('@/features/admin/pages/ReviewQueuePage.jsx'))

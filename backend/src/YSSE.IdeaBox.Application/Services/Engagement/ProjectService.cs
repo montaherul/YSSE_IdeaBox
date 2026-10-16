@@ -34,23 +34,35 @@ public sealed class ProjectService : IProjectService
 
     public async Task<IReadOnlyList<ProjectDto>> GetForIdeaAsync(int ideaId, CancellationToken ct = default)
     {
-        var userId = _current.UserId;
-        if (_current.IsAdmin)
+        // Projects are internal workspaces: visible to staff and to participants
+        // (the idea creator, the selected lead and other project members) only.
+        if (!_current.IsModeratorOrAdmin)
         {
-            return await ProjectQuery(_unitOfWork.Repository<Project>().Query().Where(p => p.IdeaId == ideaId && !p.IsDeleted), ct);
-        }
-
-        var authorized = userId is not null && await IsParticipantAsync(ideaId, userId.Value, ct);
-        var q = _unitOfWork.Repository<Project>().Query().Where(p => p.IdeaId == ideaId && !p.IsDeleted);
-        if (!authorized)
-        {
-            if (!await IsPublicIdeaAsync(ideaId, ct))
+            var userId = _current.UserId;
+            var allowed = userId is not null &&
+                (await IsIdeaCreatorAsync(ideaId, userId.Value, ct) ||
+                 await _unitOfWork.Repository<ProjectMember>().Query().AnyAsync(m => m.Project.IdeaId == ideaId && m.UserId == userId, ct));
+            if (!allowed)
             {
-                throw new ForbiddenException();
+                throw new ForbiddenException("Only staff and project participants can view projects.");
             }
         }
 
-        return await ProjectQuery(q, ct);
+        return await ProjectQuery(
+            _unitOfWork.Repository<Project>().Query().Where(p => p.IdeaId == ideaId && !p.IsDeleted), ct);
+    }
+
+    public async Task<IReadOnlyList<ProjectDto>> GetMineAsync(CancellationToken ct = default)
+    {
+        var userId = _current.RequireUserId();
+
+        // Projects assigned by staff appear on the dashboard of everyone involved:
+        // the selected lead, other project members, and the creator of the originating idea.
+        return await ProjectQuery(
+            _unitOfWork.Repository<Project>().Query().Where(p => !p.IsDeleted &&
+                (p.LeadUserId == userId ||
+                 p.Idea.CreatorUserId == userId ||
+                 p.Members.Any(m => m.UserId == userId))), ct);
     }
 
     public async Task<ProjectDetailDto?> GetByIdAsync(int id, CancellationToken ct = default)
@@ -61,13 +73,15 @@ public sealed class ProjectService : IProjectService
             return null;
         }
 
-        if (!_current.IsAdmin)
+        if (!_current.IsModeratorOrAdmin)
         {
             var userId = _current.UserId;
-            var authorized = userId is not null && await IsParticipantAsync(project.IdeaId, userId.Value, ct);
-            if (!authorized && !await IsPublicIdeaAsync(project.IdeaId, ct))
+            var allowed = userId is not null &&
+                (await IsIdeaCreatorAsync(project.IdeaId, userId.Value, ct) ||
+                 await _unitOfWork.Repository<ProjectMember>().Query().AnyAsync(m => m.ProjectId == project.Id && m.UserId == userId, ct));
+            if (!allowed)
             {
-                throw new ForbiddenException();
+                throw new ForbiddenException("Only staff and project participants can view this project.");
             }
         }
 
@@ -81,6 +95,9 @@ public sealed class ProjectService : IProjectService
                 Objectives = p.Objectives,
                 Status = p.Status,
                 LeadUserId = p.LeadUserId,
+                StartedAt = p.StartedAt,
+                CompletedAt = p.CompletedAt,
+                ArchivedAt = p.ArchivedAt,
                 Idea = new ProjectIdeaRefDto { Id = p.Idea.Id, Slug = p.Idea.Slug, Title = p.Idea.Title },
                 Milestones = p.Milestones.Select(m => new ProjectMilestoneDetailDto
                 {
@@ -115,7 +132,15 @@ public sealed class ProjectService : IProjectService
 
     public async Task<Result<int>> CreateAsync(ProjectCreateRequest request, CancellationToken ct = default)
     {
-        var userId = _current.RequireUserId();
+        _current.RequireUserId();
+
+        // Projects are assigned by staff: an admin (or moderator) selects the idea and
+        // the entrepreneur/investor who will lead the project.
+        if (!_current.IsModeratorOrAdmin)
+        {
+            throw new ForbiddenException("Only staff can create a project.");
+        }
+
         var idea = await _unitOfWork.Repository<Idea>().Query().FirstOrDefaultAsync(i => i.Id == request.IdeaId && !i.IsDeleted, ct);
         if (idea is null)
         {
@@ -129,16 +154,27 @@ public sealed class ProjectService : IProjectService
             return Result<int>.Fail("Projects can only be started from a live or approved idea.");
         }
 
-        var isCreator = idea.CreatorUserId == userId;
-        var isSeeker = await _unitOfWork.Repository<EntrepreneurInquiry>().Query().AnyAsync(i => i.IdeaId == idea.Id && i.SeekerUserId == userId, ct);
-        if (!isCreator && !isSeeker && !_current.IsAdmin)
+        var lead = await _unitOfWork.Repository<User>().Query()
+            .Where(u => u.Id == request.LeadUserId && !u.IsDeleted)
+            .Select(u => new { u.IsSuspended, Roles = u.UserRoles.Select(ur => ur.Role.Name).ToList() })
+            .FirstOrDefaultAsync(ct);
+
+        if (lead is null)
         {
-            throw new ForbiddenException("Only participants can create a project for this idea.");
+            return Result<int>.Fail("Select a valid user to lead this project.");
         }
 
-        if (!_current.IsAdmin && !_current.IsInRole(SystemRoles.Entrepreneur) && !_current.IsInRole(SystemRoles.Investor))
+        if (lead.IsSuspended)
         {
-            throw new ForbiddenException("Only the idea creator, an entrepreneur or an investor can start a project.");
+            return Result<int>.Fail("The selected user's account is suspended.");
+        }
+
+        var isEntrepreneurOrInvestor = lead.Roles.Any(r =>
+            string.Equals(r, SystemRoles.Entrepreneur, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(r, SystemRoles.Investor, StringComparison.OrdinalIgnoreCase));
+        if (!isEntrepreneurOrInvestor)
+        {
+            return Result<int>.Fail("The project lead must be an entrepreneur or an investor.");
         }
 
         var project = new Project
@@ -147,7 +183,7 @@ public sealed class ProjectService : IProjectService
             Name = request.Name.Trim(),
             Objectives = request.Objectives,
             Status = ProjectStatus.Planned,
-            LeadUserId = userId,
+            LeadUserId = request.LeadUserId,
             CreatedAt = _clock.UtcNow
         };
         await _unitOfWork.Repository<Project>().AddAsync(project, ct);
@@ -156,13 +192,17 @@ public sealed class ProjectService : IProjectService
         await _unitOfWork.Repository<ProjectMember>().AddAsync(new ProjectMember
         {
             ProjectId = project.Id,
-            UserId = userId,
+            UserId = request.LeadUserId,
             Role = "Lead",
             CreatedAt = _clock.UtcNow
         }, ct);
         await _unitOfWork.SaveChangesAsync(ct);
 
-        await _audit.RecordAsync("ProjectCreated", nameof(Project), project.Id.ToString(), null, new { project.Name }, ct);
+        await _audit.RecordAsync("ProjectCreated", nameof(Project), project.Id.ToString(), null,
+            new { project.Name, LeadUserId = request.LeadUserId }, ct);
+
+        await _notifications.NotifyAsync(request.LeadUserId, NotificationType.ProjectAssigned,
+            "Project assigned", $"You have been assigned to lead the project \"{project.Name}\".", null, ct: ct);
 
         return Result<int>.Ok(project.Id);
     }
@@ -220,6 +260,16 @@ public sealed class ProjectService : IProjectService
             throw new NotFoundException("Project not found.");
         }
 
+        if (project.Status == ProjectStatus.Archived)
+        {
+            return Result.Fail("Archived projects are final and cannot change status.");
+        }
+
+        if (request.Status == ProjectStatus.Archived)
+        {
+            return Result.Fail("Use the archive action to archive a completed project.");
+        }
+
         var isLead = project.LeadUserId == userId;
         var isMember = await _unitOfWork.Repository<ProjectMember>().Query().AnyAsync(m => m.ProjectId == project.Id && m.UserId == userId, ct);
         if (!isLead && !isMember && !_current.IsAdmin)
@@ -241,6 +291,117 @@ public sealed class ProjectService : IProjectService
         project.UpdatedAt = _clock.UtcNow;
         await _unitOfWork.SaveChangesAsync(ct);
         return Result.Ok();
+    }
+
+    /// <summary>Admin finalization: a successfully completed project is archived as a success.</summary>
+    public async Task<Result> ArchiveAsync(int id, CancellationToken ct = default)
+    {
+        _current.RequireUserId();
+        if (!_current.IsAdmin)
+        {
+            throw new ForbiddenException("Only an administrator can archive a project.");
+        }
+
+        var project = await _unitOfWork.Repository<Project>().Query().FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted, ct);
+        if (project is null)
+        {
+            throw new NotFoundException("Project not found.");
+        }
+
+        if (project.Status == ProjectStatus.Archived)
+        {
+            return Result.Fail("This project is already archived.");
+        }
+
+        if (project.Status != ProjectStatus.Completed)
+        {
+            return Result.Fail("Only a successfully completed project can be archived.");
+        }
+
+        project.Status = ProjectStatus.Archived;
+        project.ArchivedAt = _clock.UtcNow;
+        project.UpdatedAt = _clock.UtcNow;
+        await _unitOfWork.SaveChangesAsync(ct);
+
+        await _audit.RecordAsync("ProjectArchived", nameof(Project), project.Id.ToString(), null, new { project.Name }, ct);
+        return Result.Ok();
+    }
+
+    public async Task<PagedResult<ProjectArchiveItemDto>> GetArchivedAsync(ProjectArchiveQuery query, CancellationToken ct = default)
+    {
+        if (!_current.IsAdmin)
+        {
+            throw new ForbiddenException("Only an administrator can view the project archive.");
+        }
+
+        var (page, pageSize) = Pagination.Normalize(query.Page, query.PageSize);
+        var q = _unitOfWork.Repository<Project>().Query()
+            .Where(p => !p.IsDeleted && p.Status == ProjectStatus.Archived);
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var pattern = $"%{query.Search.Trim().ToLower()}%";
+            q = q.Where(p =>
+                EF.Functions.Like(p.Name.ToLower(), pattern) ||
+                EF.Functions.Like(p.Idea.Title.ToLower(), pattern));
+        }
+
+        var total = await q.CountAsync(ct);
+        var users = _unitOfWork.Repository<User>();
+        var items = await q
+            .OrderByDescending(p => p.ArchivedAt ?? p.UpdatedAt ?? p.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(p => new ProjectArchiveItemDto
+            {
+                Id = p.Id,
+                Name = p.Name,
+                IdeaId = p.IdeaId,
+                IdeaTitle = p.Idea.Title,
+                IdeaSlug = p.Idea.Slug,
+                LeadUserId = p.LeadUserId,
+                LeadDisplayName = users.Query()
+                    .Where(u => u.Id == p.LeadUserId)
+                    .Select(u => u.DisplayName)
+                    .FirstOrDefault() ?? "Member",
+                CompletedAt = p.CompletedAt,
+                ArchivedAt = p.ArchivedAt
+            })
+            .ToListAsync(ct);
+
+        return PagedResult<ProjectArchiveItemDto>.Create(items, page, pageSize, total);
+    }
+
+    /// <summary>Users eligible to lead a project (must hold the Entrepreneur or Investor role).</summary>
+    public async Task<IReadOnlyList<ProjectLeadCandidateDto>> GetLeadCandidatesAsync(string? search, CancellationToken ct = default)
+    {
+        if (!_current.IsModeratorOrAdmin)
+        {
+            throw new ForbiddenException("Only staff can select a project lead.");
+        }
+
+        var q = _unitOfWork.Repository<User>().Query()
+            .Where(u => !u.IsDeleted && !u.IsSuspended &&
+                        u.UserRoles.Any(ur =>
+                            ur.Role.Name == SystemRoles.Entrepreneur ||
+                            ur.Role.Name == SystemRoles.Investor));
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var pattern = $"%{search.Trim().ToLower()}%";
+            q = q.Where(u => EF.Functions.Like(u.DisplayName.ToLower(), pattern));
+        }
+
+        return await q
+            .OrderBy(u => u.DisplayName)
+            .Take(20)
+            .Select(u => new ProjectLeadCandidateDto
+            {
+                UserId = u.Id,
+                DisplayName = u.DisplayName,
+                Roles = u.UserRoles.Select(ur => ur.Role.Name).ToList()
+            })
+            .ToListAsync(ct);
     }
 
     public async Task<Result<int>> AddMilestoneAsync(int projectId, ProjectMilestoneCreateRequest request, CancellationToken ct = default)
@@ -354,19 +515,9 @@ public sealed class ProjectService : IProjectService
             })
             .ToListAsync(ct);
 
-    private async Task<bool> IsPublicIdeaAsync(int ideaId, CancellationToken ct) =>
-        await _unitOfWork.Repository<Idea>().Query().AnyAsync(i => i.Id == ideaId && !i.IsDeleted && i.Status == IdeaStatus.Published, ct);
-
-    private async Task<bool> IsParticipantAsync(int ideaId, int userId, CancellationToken ct)
-    {
-        if (await _unitOfWork.Repository<Idea>().Query().AnyAsync(i => i.Id == ideaId && i.CreatorUserId == userId && !i.IsDeleted, ct))
-        {
-            return true;
-        }
-
-        return await _unitOfWork.Repository<EntrepreneurInquiry>().Query().AnyAsync(i => i.IdeaId == ideaId && i.SeekerUserId == userId, ct) ||
-               await _unitOfWork.Repository<ProjectMember>().Query().AnyAsync(m => m.Project.IdeaId == ideaId && m.UserId == userId, ct);
-    }
+    private async Task<bool> IsIdeaCreatorAsync(int ideaId, int userId, CancellationToken ct) =>
+        await _unitOfWork.Repository<Idea>().Query()
+            .AnyAsync(i => i.Id == ideaId && i.CreatorUserId == userId && !i.IsDeleted, ct);
 
     private async Task RequireMemberAsync(int projectId, int userId, CancellationToken ct)
     {

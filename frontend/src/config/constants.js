@@ -84,4 +84,5 @@ export const NOTIFICATION_TYPE_LABELS = {
   ModerationDecision: 'Moderation decision',
   OutcomeUpdate: 'Outcome update',
   AccountNotice: 'Account notice',
+  ProjectAssigned: 'Project assigned',
 }

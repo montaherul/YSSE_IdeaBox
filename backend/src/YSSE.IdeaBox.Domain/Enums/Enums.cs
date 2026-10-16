@@ -132,7 +132,8 @@ public enum ProjectStatus
     InProgress = 1,
     Paused = 2,
     Completed = 3,
-    Cancelled = 4
+    Cancelled = 4,
+    Archived = 5
 }
 
 public enum ListingType
@@ -197,7 +198,8 @@ public enum NotificationType
     MarketplaceReservation = 11,
     ModerationDecision = 12,
     OutcomeUpdate = 13,
-    AccountNotice = 14
+    AccountNotice = 14,
+    ProjectAssigned = 15
 }
 
 public enum NotificationChannel

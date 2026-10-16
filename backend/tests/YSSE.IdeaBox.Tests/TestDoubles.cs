@@ -14,7 +14,7 @@ internal sealed class FakeCurrentUser : ICurrentUserService
 
     public bool IsInRole(string role) => Roles.Contains(role);
 
-    public bool IsModeratorOrAdmin => IsAdmin;
+    public bool IsModeratorOrAdmin => IsAdmin || Roles.Contains(SystemRoles.Moderator);
 
     public bool IsAdmin { get; init; }
 

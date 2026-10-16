@@ -18,6 +18,20 @@ public sealed class ProjectsController : ApiControllerBase
     public async Task<IActionResult> ForIdea(int ideaId, CancellationToken ct)
         => OkData(await _projects.GetForIdeaAsync(ideaId, ct));
 
+    [HttpGet("projects/archive")]
+    [Authorize(Policy = Permissions.ProjectsManage)]
+    public async Task<IActionResult> Archive([FromQuery] ProjectArchiveQuery query, CancellationToken ct)
+        => Paged(await _projects.GetArchivedAsync(query, ct));
+
+    [HttpGet("projects/mine")]
+    public async Task<IActionResult> Mine(CancellationToken ct)
+        => OkData(await _projects.GetMineAsync(ct));
+
+    [HttpGet("projects/lead-candidates")]
+    [Authorize(Policy = Permissions.ProjectsCreate)]
+    public async Task<IActionResult> LeadCandidates([FromQuery] string? search, CancellationToken ct)
+        => OkData(await _projects.GetLeadCandidatesAsync(search, ct));
+
     [HttpGet("projects/{id:int}")]
     [Authorize(Policy = Permissions.ProjectsRead)]
     public async Task<IActionResult> GetById(int id, CancellationToken ct)
@@ -30,6 +44,11 @@ public sealed class ProjectsController : ApiControllerBase
     [Authorize(Policy = Permissions.ProjectsCreate)]
     public async Task<IActionResult> Create([FromBody] ProjectCreateRequest request, CancellationToken ct)
         => OkResult(await _projects.CreateAsync(request, ct));
+
+    [HttpPost("projects/{id:int}/archive")]
+    [Authorize(Policy = Permissions.ProjectsManage)]
+    public async Task<IActionResult> ArchiveProject(int id, CancellationToken ct)
+        => OkResult(await _projects.ArchiveAsync(id, ct));
 
     [HttpPut("projects/{id:int}")]
     [Authorize(Policy = Permissions.ProjectsUpdate)]

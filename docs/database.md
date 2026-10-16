@@ -55,7 +55,7 @@ Enums are stored as `int` (their declaration order is intentional and matches th
 | `ProblemStatus` | Open, InReview, Endorsed, Linked, Resolved, Archived |
 | `InquiryType` | Mentorship, Investment, Partnership, Feedback, Other |
 | `OutcomeStatus` | Pending, Verified, Rejected |
-| `ProjectStatus` | Planning, Active, OnHold, Completed, Archived |
+| `ProjectStatus` | Planned, InProgress, Paused, Completed, Cancelled, Archived (final; set via `/projects/{id}/archive`) |
 | `ListingType` | Sale, Donation, Exchange |
 | `ListingStatus` | Draft, Active, Reserved, Sold, Withdrawn, Archived |
 | `ReservationStatus` | Pending, Accepted, Declined, Cancelled, Completed |

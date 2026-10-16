@@ -262,7 +262,8 @@ export const reservationSchema = z.object({
 /* ---------------- Projects & outcomes ---------------- */
 
 export const projectSchema = z.object({
-  ideaId: z.coerce.number().int().positive(),
+  ideaId: z.coerce.number().int().positive('Select an idea for this project.'),
+  leadUserId: z.coerce.number().int().positive('Select the entrepreneur or investor who will lead'),
   name: requiredText(3, 200, 'Project name'),
   objectives: optionalText(2000, 'Objectives'),
 })

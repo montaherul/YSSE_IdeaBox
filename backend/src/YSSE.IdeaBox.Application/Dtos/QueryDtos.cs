@@ -23,6 +23,13 @@ public record AdminUserQuery
     public int? PageSize { get; init; }
 }
 
+public record ProjectArchiveQuery
+{
+    public string? Search { get; init; }
+    public int? Page { get; init; }
+    public int? PageSize { get; init; }
+}
+
 public record ProblemListQuery
 {
     public string? Search { get; init; }

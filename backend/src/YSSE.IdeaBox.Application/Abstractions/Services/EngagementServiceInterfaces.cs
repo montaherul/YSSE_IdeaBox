@@ -129,7 +129,14 @@ public interface IProjectService
 {
     Task<IReadOnlyList<ProjectDto>> GetForIdeaAsync(int ideaId, CancellationToken ct = default);
 
+    /// <summary>Projects assigned to the current user: as the selected lead, a project member, or the idea's creator.</summary>
+    Task<IReadOnlyList<ProjectDto>> GetMineAsync(CancellationToken ct = default);
+
     Task<ProjectDetailDto?> GetByIdAsync(int id, CancellationToken ct = default);
+
+    Task<PagedResult<ProjectArchiveItemDto>> GetArchivedAsync(ProjectArchiveQuery query, CancellationToken ct = default);
+
+    Task<IReadOnlyList<ProjectLeadCandidateDto>> GetLeadCandidatesAsync(string? search, CancellationToken ct = default);
 
     Task<Result<int>> CreateAsync(ProjectCreateRequest request, CancellationToken ct = default);
 
@@ -138,6 +145,8 @@ public interface IProjectService
     Task<Result> DeleteAsync(int id, CancellationToken ct = default);
 
     Task<Result> ChangeStatusAsync(int id, ProjectStatusChangeRequest request, CancellationToken ct = default);
+
+    Task<Result> ArchiveAsync(int id, CancellationToken ct = default);
 
     Task<Result<int>> AddMilestoneAsync(int projectId, ProjectMilestoneCreateRequest request, CancellationToken ct = default);
 

@@ -3,6 +3,7 @@ import {
   Bell,
   Bookmark,
   Compass,
+  FolderKanban,
   Inbox,
   Lightbulb,
   MessageSquare,
@@ -16,6 +17,7 @@ import { useMyIdeas } from '@/features/ideas/hooks'
 import { useNotifications } from '@/features/notifications/hooks'
 import { useInquiriesReceived } from '@/features/entrepreneur/hooks'
 import { useMemberProfile } from '@/features/profile/hooks'
+import { MyProjectsPanel } from '@/features/projects/components/MyProjectsPanel'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { BoundaryNotice } from '@/components/shared/BoundaryNotice'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -70,6 +72,18 @@ export default function DashboardPage() {
           </Link>
         ))}
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FolderKanban className="h-4 w-4" aria-hidden="true" />
+            My projects
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <MyProjectsPanel />
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

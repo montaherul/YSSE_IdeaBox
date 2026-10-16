@@ -39,11 +39,37 @@ public record ProjectDto
 public record ProjectCreateRequest
 {
     [Required] public int IdeaId { get; init; }
+
+    [Range(1, int.MaxValue)] public int LeadUserId { get; init; }
+
     [Required, MaxLength(200)] public string Name { get; init; } = string.Empty;
+
     [MaxLength(2000)] public string? Objectives { get; init; }
 }
 
 public record ProjectStatusChangeRequest([Required] ProjectStatus Status);
+
+/// <summary>Admin-selected candidate to lead a project (an entrepreneur or an investor).</summary>
+public record ProjectLeadCandidateDto
+{
+    public int UserId { get; init; }
+    public string DisplayName { get; init; } = string.Empty;
+    public IReadOnlyList<string> Roles { get; init; } = Array.Empty<string>();
+}
+
+/// <summary>Archive row for successfully completed projects.</summary>
+public record ProjectArchiveItemDto
+{
+    public int Id { get; init; }
+    public string Name { get; init; } = string.Empty;
+    public int IdeaId { get; init; }
+    public string IdeaTitle { get; init; } = string.Empty;
+    public string IdeaSlug { get; init; } = string.Empty;
+    public int LeadUserId { get; init; }
+    public string LeadDisplayName { get; init; } = string.Empty;
+    public DateTime? CompletedAt { get; init; }
+    public DateTime? ArchivedAt { get; init; }
+}
 
 public record ProjectUpdateRequest
 {
@@ -99,6 +125,9 @@ public record ProjectDetailDto
     public string? Objectives { get; init; }
     public ProjectStatus Status { get; init; }
     public int LeadUserId { get; init; }
+    public DateTime? StartedAt { get; init; }
+    public DateTime? CompletedAt { get; init; }
+    public DateTime? ArchivedAt { get; init; }
     public ProjectIdeaRefDto? Idea { get; init; }
     public IReadOnlyList<ProjectMilestoneDetailDto> Milestones { get; init; } = Array.Empty<ProjectMilestoneDetailDto>();
     public IReadOnlyList<ProjectTaskDetailDto> Tasks { get; init; } = Array.Empty<ProjectTaskDetailDto>();

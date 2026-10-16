@@ -242,9 +242,13 @@ Guest reviews are tracked by an HTTP-only guest cookie and rate-limited. The coo
 
 | Method | Path | Policy |
 | --- | --- | --- |
-| GET | `/ideas/{ideaId}/projects` | A |
-| GET | `/projects/{id}` | `projects.read` |
+| GET | `/ideas/{ideaId}/projects` | A — staff or participants only (hidden otherwise) |
+| GET | `/projects/{id}` | `projects.read` — staff or participants only |
+| GET | `/projects/archive` | `projects.manage` |
+| GET | `/projects/mine` | A — assigned projects (lead, member, or idea creator) |
+| GET | `/projects/lead-candidates` | `projects.create` |
 | POST | `/projects` | `projects.create` |
+| POST | `/projects/{id}/archive` | `projects.manage` |
 | PUT | `/projects/{id}` | `projects.update` |
 | DELETE | `/projects/{id}` | `projects.delete` |
 | POST | `/projects/{id}/status` | `projects.update` |
@@ -252,7 +256,7 @@ Guest reviews are tracked by an HTTP-only guest cookie and rate-limited. The coo
 | POST | `/projects/{projectId}/tasks` | `projects.update` |
 | POST | `/projects/{projectId}/updates` | `projects.update` |
 
-Project creation also enforces eligibility server-side (live idea, participant, entrepreneur/investor or admin).
+Project visibility is restricted to staff (moderator/admin) and participants (the idea's creator and project members); everyone else receives `403`. Project creation is staff-driven: the caller must be a moderator/admin, the idea must be live, and `leadUserId` must reference an active entrepreneur or investor. `Completed → Archived` is final and only possible through `POST /projects/{id}/archive` (`projects.manage`); archived projects appear in `GET /projects/archive`.
 
 ### Reports — `/api/v1/reports`
 

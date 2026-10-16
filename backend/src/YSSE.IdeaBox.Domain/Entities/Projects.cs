@@ -22,6 +22,9 @@ public class Project : BaseEntity, ISoftDeletable
 
     public DateTime? CompletedAt { get; set; }
 
+    /// <summary>Set when an admin archives a successfully completed project.</summary>
+    public DateTime? ArchivedAt { get; set; }
+
     public bool IsDeleted { get; set; }
 
     public DateTime? DeletedAt { get; set; }

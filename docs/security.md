@@ -43,7 +43,7 @@ Two layers, both evaluated server-side:
 - Role→permission defaults are seeded in `DbInitializer`: `Member` gets self-service capabilities; `Moderator`, `ScreeningReviewer`, and `Administrator` progressively more; `Administrator` holds all permissions.
 
 ### Resource-level checks
-Beyond endpoint policy, services verify **ownership and state** — for example only an idea's creator may edit it, only in allowed statuses; only conversation participants may read messages; project creation requires a live idea, participation, and entrepreneur/investor (or admin) status. These checks run in the application layer and cannot be bypassed by the client.
+Beyond endpoint policy, services verify **ownership and state** — for example only an idea's creator may edit it, only in allowed statuses; only conversation participants may read messages; project creation is staff-driven (moderator/admin) with a live idea and an entrepreneur/investor lead, and project data is readable only by staff and participants. These checks run in the application layer and cannot be bypassed by the client.
 
 ### IDOR protection
 Identifiers are never trusted for access decisions. The server loads the resource, verifies the caller's right to it, and returns `403`/`404` accordingly.

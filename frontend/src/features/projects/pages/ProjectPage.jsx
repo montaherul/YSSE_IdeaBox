@@ -18,6 +18,7 @@ import {
   useDeleteOutcome,
   useProjectStatus,
   useDeleteProject,
+  useArchiveProject,
 } from '@/features/projects/hooks'
 import { outcomesApi } from '@/features/projects/api'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -341,10 +342,13 @@ export default function ProjectPage() {
   const { can, canPermission } = usePermission()
   const { user } = useAuth()
   const canCreateProject = canPermission('projects.create')
+  const canArchive = canPermission('projects.manage')
   const { data: project, isLoading, isError, error, refetch } = useProject(id)
   const addUpdate = useCreateProjectUpdate()
   const remove = useDeleteProject()
+  const archive = useArchiveProject()
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [confirmingArchive, setConfirmingArchive] = useState(false)
   useDocumentTitle(project?.name ? `${project.name} — Project` : 'Project')
 
   const form = useForm({
@@ -356,14 +360,21 @@ export default function ProjectPage() {
   if (isError) return <ErrorState message={error?.message} onRetry={refetch} />
   if (!project) return <ErrorState title="Project not found" message="This project may have been removed." />
 
+  const isArchived = project.status === 'Archived'
   const isLead = Boolean(user?.id && project.leadUserId && user.id === project.leadUserId)
-  const canManage = canPermission('projects.update') || isLead
+  const canManage = (canPermission('projects.update') || isLead) && !isArchived
   const canEdit = canManage
-  const canDelete = canPermission('projects.delete') || isLead
+  const canDelete = (canPermission('projects.delete') || isLead) && !isArchived
 
   const milestones = project.milestones ?? []
   const tasks = project.tasks ?? []
   const updates = project.updates ?? []
+
+  const timeline = [
+    project.startedAt ? `Started ${formatDate(project.startedAt, { short: true })}` : null,
+    project.completedAt ? `Completed ${formatDate(project.completedAt, { short: true })}` : null,
+    project.archivedAt ? `Archived ${formatDate(project.archivedAt, { short: true })}` : null,
+  ].filter(Boolean)
 
   const onSubmitUpdate = async (values) => {
     try {
@@ -401,10 +412,19 @@ export default function ProjectPage() {
               </Button>
             ) : null}
             <StatusBadge status={project.status} />
+            {canArchive && project.status === 'Completed' ? (
+              <Button size="sm" onClick={() => setConfirmingArchive(true)}>
+                Archive as success
+              </Button>
+            ) : null}
             <ProjectStatusSelector project={project} canManage={canManage} />
           </div>
         }
       />
+
+      {timeline.length > 0 ? (
+        <p className="text-sm text-muted-foreground">{timeline.join(' · ')}</p>
+      ) : null}
 
       {project.idea?.slug ? (
         <p className="text-sm">
@@ -555,6 +575,17 @@ export default function ProjectPage() {
           remove.mutate(project.id, {
             onSuccess: () => navigate(project.idea?.slug ? `/ideas/${project.idea.slug}` : '/'),
           })
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmingArchive}
+        onOpenChange={setConfirmingArchive}
+        title="Archive this project as a success?"
+        description="The project is marked as a successfully completed collaboration and moves to the project archive. Archived projects are final."
+        confirmLabel="Archive as success"
+        onConfirm={() => {
+          archive.mutate(project.id, { onSuccess: () => setConfirmingArchive(false) })
         }}
       />
     </div>

@@ -17,6 +17,31 @@ export function useIdeaProjects(ideaId, enabled = true) {
     queryKey: ['projects', 'idea', ideaId],
     queryFn: () => projectsApi.ideaProjects(ideaId),
     enabled: enabled && Boolean(ideaId),
+    retry: false,
+  })
+}
+
+export function useMyProjects() {
+  return useQuery({
+    queryKey: ['projects', 'mine'],
+    queryFn: () => projectsApi.mine(),
+    retry: false,
+  })
+}
+
+export function useArchivedProjects(params) {
+  return useQuery({
+    queryKey: ['projects', 'archive', params],
+    queryFn: () => projectsApi.archivedProjects(params),
+    placeholderData: (prev) => prev,
+  })
+}
+
+export function useProjectLeadCandidates(search) {
+  return useQuery({
+    queryKey: ['projects', 'lead-candidates', search],
+    queryFn: () => projectsApi.leadCandidates(search ? { search } : undefined),
+    placeholderData: (prev) => prev,
   })
 }
 
@@ -69,6 +94,20 @@ export function useProjectStatus() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['projects'] })
       toast.success('Project status updated.')
+    },
+    onError: (e) => {
+      if (!e?.status) toast.error(toErrorMessage(e))
+    },
+  })
+}
+
+export function useArchiveProject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => projectsApi.archiveProject(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      toast.success('Project archived as a success.')
     },
     onError: (e) => {
       if (!e?.status) toast.error(toErrorMessage(e))
