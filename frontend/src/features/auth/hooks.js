@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { authApi } from './api'
@@ -7,6 +7,7 @@ import { toErrorMessage } from '@/lib/validation'
 
 export function useLogin() {
   const setAuth = useAuthStore((s) => s.setAuth)
+  const queryClient = useQueryClient()
   const navigate = useNavigate()
 
   return useMutation({
@@ -15,6 +16,8 @@ export function useLogin() {
       const tokens = data?.accessToken || data?.data ? data : null
       const { accessToken, refreshToken, user } = tokens ?? {}
       if (accessToken && refreshToken) {
+        // Drop any cached data from a previous account before establishing the new session.
+        queryClient.clear()
         setAuth(accessToken, refreshToken, user)
         toast.success('Welcome back!')
       } else {
@@ -65,12 +68,15 @@ export function useAuthMe({ enabled = true } = {}) {
 
 export function useLogout() {
   const logout = useAuthStore((s) => s.logout)
+  const queryClient = useQueryClient()
   const navigate = useNavigate()
 
   return useMutation({
     mutationFn: () => authApi.logout().catch(() => null),
     onSettled: () => {
       logout()
+      // Clear cached server state so a different account never sees stale private data.
+      queryClient.clear()
       toast.info('Signed out.')
       navigate('/')
     },

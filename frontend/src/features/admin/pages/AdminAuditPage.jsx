@@ -46,7 +46,8 @@ export default function AdminAuditPage() {
             field: 'entity',
             title: 'Target',
             headerSort: false,
-            formatter: (cell, data) => {
+            formatter: (cell) => {
+              const data = cell.getData()
               const text = data?.entity ?? data?.performedBy?.entity
               const suffix = data?.entityId ? ` #${data.entityId}` : ''
               return text ? `${text}${suffix}` : '—'

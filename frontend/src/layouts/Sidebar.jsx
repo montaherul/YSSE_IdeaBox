@@ -14,20 +14,24 @@ export function Sidebar({ onNavigate }) {
   const isAdmin = can('admin')
   const isModerator = can('moderator') || can('reviewer')
 
+  // Administrators match the staff audiences, so they see every staff module without
+  // enumerating roles. Member/workspace sections remain hidden from administrators.
   const audienceMatches = (audience) => {
     if (audience === 'admin') return isAdmin
-    if (audience === 'moderator') return isModerator
+    if (audience === 'moderator') return isModerator || isAdmin
     if (audience === 'workspace') return !isAdmin
     if (audience === 'member') return !isAdmin
     return false
   }
 
-  // Role access first, then permission access: an item that declares roles/permissions
-  // is shown when the user holds one of them; otherwise the group audience decides.
+  // The group audience gates the whole section first; an item that also declares
+  // roles/permissions is then shown only when the user holds one of them. This keeps
+  // member-only read permissions (e.g. categories.read) from surfacing admin sections.
   const isItemVisible = (group, item) => {
+    if (!audienceMatches(group.audience)) return false
     const hasRequirements = (item.roles?.length ?? 0) > 0 || (item.permissions?.length ?? 0) > 0
-    if (hasRequirements) return canAccess({ roles: item.roles, permissions: item.permissions })
-    return audienceMatches(group.audience)
+    if (!hasRequirements) return true
+    return canAccess({ roles: item.roles, permissions: item.permissions })
   }
 
   const visibleGroups = navigationConfig

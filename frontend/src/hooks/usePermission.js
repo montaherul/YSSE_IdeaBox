@@ -33,10 +33,10 @@ export function usePermission() {
 
   const can = (roleKey) => {
     if (!isAuthenticated) return false
-    const candidates = ROLE_ALIASES[roleKey] || [roleKey]
-    return roles.some((r) =>
-      candidates.some((c) => r.toLowerCase() === c.toLowerCase() || r.includes(c) || c.includes(r)),
-    )
+    // Exact (case-insensitive) alias match only. Substring matching is deliberately
+    // avoided so custom roles (e.g. "Admin Assistant") are never mistaken for staff.
+    const candidates = (ROLE_ALIASES[roleKey] || [roleKey]).map((c) => String(c).toLowerCase())
+    return roles.some((r) => candidates.includes(String(r).toLowerCase()))
   }
 
   const canPermission = (code) => {

@@ -156,14 +156,14 @@ export default function NotificationsPage() {
             title: '',
             headerSort: false,
             width: 40,
-            formatter: (cell) => {
-              const dot = document.createElement('span')
-              dot.className = `inline-block h-2 w-2 rounded-full ${
-                cell.getValue() ? 'bg-muted-foreground/40' : 'bg-primary'
-              }`
-              dot.setAttribute('aria-hidden', 'true')
-              return dot
-            },
+            formatter: (cell) => (
+              <span
+                aria-hidden="true"
+                className={`inline-block h-2 w-2 rounded-full ${
+                  cell.getValue() ? 'bg-muted-foreground/40' : 'bg-primary'
+                }`}
+              />
+            ),
           },
           {
             field: 'type',

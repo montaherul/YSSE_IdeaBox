@@ -25,18 +25,21 @@ import {
 /**
  * Navigation definition.
  *
- * Visibility is resolved as a union of role access (first) and permission access (second):
+ * Visibility is resolved in two steps: the group audience gates the section first, then
+ * any item-level role/permission requirement filters within it:
  *   - `group.audience` sets the base role audience for the group:
  *       workspace  -> members and moderators (never a full administrator)
  *       member     -> members only (Discover / Connect)
- *       moderator  -> moderators and screening reviewers
+ *       moderator  -> moderators, screening reviewers and administrators
  *       admin      -> administrators only
  *   - `item.roles`       (optional) role keys resolved by `usePermission().can()`
  *   - `item.permissions` (optional) permission codes resolved by `usePermission().canPermission()`
  *
- * An item that declares `roles` or `permissions` is shown when the user holds one of
- * them; otherwise the group audience decides. Because an administrator holds every
- * permission code, an admin sees every module without enumerating roles.
+ * An item is shown only when its group audience matches AND (when declared) the user
+ * holds one of its roles/permissions. Requiring the audience as well prevents generic
+ * member read permissions (e.g. `categories.read`) from revealing admin-only sections.
+ * Because an administrator holds every permission code and matches the staff audiences,
+ * an admin sees every staff module without enumerating roles.
  *
  * This only controls UI visibility. The .NET Web API remains the authoritative
  * authorization boundary for every protected operation.
@@ -47,28 +50,28 @@ export const navigationConfig = [
     audience: 'workspace',
     items: [
       { to: '/app', label: 'Dashboard', icon: LayoutDashboard },
-      { to: '/app/ideas', label: 'My ideas', icon: Lightbulb },
-      { to: '/me/reviews', label: 'My reviews', icon: MessageSquare },
-      { to: '/me/following', label: 'Following', icon: Bookmark },
-      { to: '/app/notifications', label: 'Notifications', icon: Bell },
+      { to: '/app/ideas', label: 'My ideas', icon: Lightbulb, permissions: ['ideas.read'] },
+      { to: '/me/reviews', label: 'My reviews', icon: MessageSquare, permissions: ['reviews.read'] },
+      { to: '/me/following', label: 'Following', icon: Bookmark, permissions: ['profiles.read'] },
+      { to: '/app/notifications', label: 'Notifications', icon: Bell, permissions: ['notifications.read'] },
     ],
   },
   {
     group: 'Discover',
     audience: 'member',
     items: [
-      { to: '/ideas', label: 'Discover ideas', icon: Search },
-      { to: '/problems', label: 'Problems', icon: Users },
-      { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
-      { to: '/marketplace', label: 'Marketplace', icon: Store },
+      { to: '/ideas', label: 'Discover ideas', icon: Search, permissions: ['ideas.read'] },
+      { to: '/problems', label: 'Problems', icon: Users, permissions: ['problems.read'] },
+      { to: '/leaderboard', label: 'Leaderboard', icon: Trophy, permissions: ['voting.read'] },
+      { to: '/marketplace', label: 'Marketplace', icon: Store, permissions: ['marketplace.read'] },
     ],
   },
   {
     group: 'Connect',
     audience: 'member',
     items: [
-      { to: '/inquiries', label: 'Inquiries', icon: Inbox },
-      { to: '/inbox', label: 'Messages', icon: MessageSquare },
+      { to: '/inquiries', label: 'Inquiries', icon: Inbox, permissions: ['inquiries.read'] },
+      { to: '/inbox', label: 'Messages', icon: MessageSquare, permissions: ['messages.read'] },
       { to: '/opportunities', label: 'Entrepreneur portal', icon: Compass, roles: ['entrepreneur'] },
     ],
   },
@@ -77,7 +80,7 @@ export const navigationConfig = [
     audience: 'moderator',
     items: [
       { to: '/review/queue', label: 'Review queue', icon: MessageSquare, permissions: ['screening.read'] },
-      { to: '/admin/moderation', label: 'Moderation', icon: Flag, permissions: ['reports.read'] },
+      { to: '/admin/moderation', label: 'Moderation', icon: Flag, permissions: ['content.reports.read'] },
     ],
   },
   {
@@ -88,9 +91,9 @@ export const navigationConfig = [
       { to: '/users', label: 'Users', icon: ShieldCheck, permissions: ['users.read'] },
       { to: '/admin/roles', label: 'Roles', icon: Users, permissions: ['roles.read'] },
       { to: '/admin/permissions', label: 'Permissions', icon: ShieldCheck, permissions: ['permissions.read'] },
-      { to: '/admin/entrepreneurs', label: 'Entrepreneurs', icon: Users, permissions: ['inquiries.read'] },
-      { to: '/admin/categories', label: 'Categories', icon: FolderTree, permissions: ['categories.read'] },
-      { to: '/admin/tags', label: 'Tags', icon: Tag, permissions: ['tags.read'] },
+      { to: '/admin/entrepreneurs', label: 'Entrepreneurs', icon: Users, roles: ['admin'] },
+      { to: '/admin/categories', label: 'Categories', icon: FolderTree, roles: ['admin'] },
+      { to: '/admin/tags', label: 'Tags', icon: Tag, roles: ['admin'] },
       { to: '/admin/content', label: 'Site content', icon: FileText, permissions: ['staticcontent.read'] },
       { to: '/admin/voting', label: 'Voting & sessions', icon: CalendarDays, permissions: ['votingperiods.read'] },
       { to: '/admin/featured', label: 'Featured ideas', icon: Star, permissions: ['ideas.feature'] },

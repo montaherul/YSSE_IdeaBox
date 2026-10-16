@@ -42,6 +42,7 @@ public static class DbInitializer
             ],
             [SystemRoles.Moderator] =
             [
+                Permissions.ProjectsCreate,
                 Permissions.ProblemsModerate, Permissions.ReviewsModerate, Permissions.ReviewsDelete,
                 Permissions.MessagesDelete, Permissions.InquiriesDelete, Permissions.OutcomesDelete,
                 Permissions.NotificationsDelete,

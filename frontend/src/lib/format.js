@@ -102,7 +102,10 @@ export function formatNumber(value) {
 
 export function formatCompact(value) {
   if (value === null || value === undefined) return '—'
-  return getNumberFormat(currentLocale, { notation: 'compact' }).format(value)
+  const formatted = getNumberFormat(currentLocale, { notation: 'compact' }).format(value)
+  // CLDR/ICU data differs between runtimes (e.g. en-GB emits "1.5k" on older
+  // ICU). Normalise the latin compact suffixes so output stays stable.
+  return formatted.replace(/(\d)([kmbt])$/i, (_, digit, suffix) => `${digit}${suffix.toUpperCase()}`)
 }
 
 export function formatCurrency(value, currency = 'BDT') {

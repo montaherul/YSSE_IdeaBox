@@ -36,17 +36,14 @@ export default function AdminFeaturedPage() {
             headerSort: false,
             formatter: (cell) => {
               const row = cell.getData()
-              const wrap = document.createElement('div')
-              wrap.className = 'min-w-0'
-              const link = document.createElement('a')
-              link.href = `/ideas/${row.slug ?? row.id}`
-              link.textContent = row.title ?? ''
-              link.className = 'font-medium hover:text-primary'
-              const meta = document.createElement('div')
-              meta.className = 'text-xs text-muted-foreground'
-              meta.textContent = row.categoryName ?? ''
-              wrap.append(link, meta)
-              return wrap
+              return (
+                <div className="min-w-0">
+                  <a href={`/ideas/${row.slug ?? row.id}`} className="font-medium hover:text-primary">
+                    {row.title ?? ''}
+                  </a>
+                  <div className="text-xs text-muted-foreground">{row.categoryName ?? ''}</div>
+                </div>
+              )
             },
           },
           {

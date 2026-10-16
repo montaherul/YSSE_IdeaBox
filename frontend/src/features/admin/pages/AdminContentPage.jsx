@@ -59,7 +59,7 @@ function ContentDialog({ content, onClose }) {
           {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField id="content-key" label="Key" required hint="Unique identifier, e.g. about-intro">
-              <Input id="content-key" value={key} disabled={isEdit} onChange={(e) => setKey(e.target.value)} placeholder="e.g., about-intro" />
+              <Input id="content-key" value={key} onChange={(e) => setKey(e.target.value)} placeholder="e.g., about-intro" />
             </FormField>
             <FormField id="content-title" label="Title" required>
               <Input id="content-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g., About YSSE" />
@@ -116,7 +116,11 @@ export default function AdminContentPage() {
           { field: 'title', title: 'Title', headerSort: true, widthGrow: 2 },
           { field: 'isActive', title: 'Status', headerSort: false, formatter: (cell) => {
               const active = cell.getValue()
-              return `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${active ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}">${active ? 'Published' : 'Hidden'}</span>`
+              return (
+                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${active ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                  {active ? 'Published' : 'Hidden'}
+                </span>
+              )
             } },
           { field: 'updatedAt', title: 'Updated', headerSort: true, formatter: (cell) => (cell.getValue() ? formatDateTime(cell.getValue()) : '—') },
         ]}

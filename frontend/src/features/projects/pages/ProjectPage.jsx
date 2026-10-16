@@ -340,7 +340,6 @@ export default function ProjectPage() {
   const navigate = useNavigate()
   const { can, canPermission } = usePermission()
   const { user } = useAuth()
-  const canManage = can('admin') || can('moderator')
   const canCreateProject = canPermission('projects.create')
   const { data: project, isLoading, isError, error, refetch } = useProject(id)
   const addUpdate = useCreateProjectUpdate()
@@ -358,7 +357,9 @@ export default function ProjectPage() {
   if (!project) return <ErrorState title="Project not found" message="This project may have been removed." />
 
   const isLead = Boolean(user?.id && project.leadUserId && user.id === project.leadUserId)
-  const canEdit = canManage || isLead
+  const canManage = canPermission('projects.update') || isLead
+  const canEdit = canManage
+  const canDelete = canPermission('projects.delete') || isLead
 
   const milestones = project.milestones ?? []
   const tasks = project.tasks ?? []
@@ -393,7 +394,7 @@ export default function ProjectPage() {
                 </Link>
               </Button>
             ) : null}
-            {canEdit ? (
+            {canDelete ? (
               <Button size="sm" variant="outline" onClick={() => setConfirmingDelete(true)}>
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
                 Delete
