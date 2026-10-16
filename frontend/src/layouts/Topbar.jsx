@@ -22,7 +22,6 @@ import { UserAvatar } from '@/components/shared/Avatar'
 import { Logo } from '@/components/shared/Logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Separator } from '@/components/ui/separator'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -175,7 +174,6 @@ export function Topbar({ onMenuClick }) {
           </div>
         )}
       </nav>
-      <Separator className="mx-1" />
     </header>
   )
 }

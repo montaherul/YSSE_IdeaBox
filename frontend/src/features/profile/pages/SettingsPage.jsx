@@ -13,10 +13,7 @@ import {
 } from '@/features/profile/hooks'
 import { mediaUrl, convertImageToWebp } from '@/lib/media'
 import { UserAvatar } from '@/components/shared/UserAvatar'
-import {
-  useNotificationPreferences,
-  useUpdateNotificationPreference,
-} from '@/features/notifications/hooks'
+import { NotificationPreferencesCard } from '@/features/notifications/components/NotificationPreferencesCard'
 import { useLogout } from '@/features/auth/hooks'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { PageSkeleton } from '@/components/shared/LoadingSkeleton'
@@ -37,8 +34,6 @@ export default function SettingsPage() {
   const update = useUpdateMemberProfile()
   const uploadAvatar = useUploadAvatar()
   const removeAvatar = useRemoveAvatar()
-  const prefs = useNotificationPreferences()
-  const updatePref = useUpdateNotificationPreference()
   const logout = useLogout()
 
   const form = useForm({
@@ -78,7 +73,6 @@ export default function SettingsPage() {
   }
 
   const avatarBusy = converting || uploadAvatar.isPending || removeAvatar.isPending
-  const prefItems = prefs.data?.items ?? prefs.data ?? []
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -174,37 +168,7 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="notifications" className="pt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notification preferences</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {prefItems.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No notification preferences available.</p>
-              ) : (
-                <ul className="divide-y">
-                  {prefItems.map((pref) => (
-                    <li key={pref.type ?? pref.id} className="flex items-center justify-between gap-3 py-3">
-                      <div>
-                        <p className="text-sm font-medium">{pref.label ?? pref.type}</p>
-                        {pref.description ? <p className="text-xs text-muted-foreground">{pref.description}</p> : null}
-                      </div>
-                      <label className="relative inline-flex items-center">
-                        <input
-                          type="checkbox"
-                          className="peer sr-only"
-                          checked={Boolean(pref.enabled)}
-                          onChange={(e) => updatePref.mutate({ type: pref.type, enabled: e.target.checked })}
-                        />
-                        <span className="h-6 w-11 rounded-full bg-muted transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow peer-checked:bg-primary peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-ring" aria-hidden="true" />
-                        <span className="sr-only">Toggle {pref.label ?? pref.type}</span>
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+          <NotificationPreferencesCard />
         </TabsContent>
 
         <TabsContent value="account" className="pt-4">
