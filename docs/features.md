@@ -83,6 +83,7 @@ Reviewers work a queue and record decisions.
 
 - Registered users and **guests** can review ideas with a rating and text.
 - Guest reviews are tracked via an HTTP-only guest cookie and rate-limited (`guest-review`, 3/hour).
+- Display policy: guest reviews show as **Anonymous**; registered reviews show the reviewer's name and profile photo.
 - Reviews have a moderation status (`Pending`, `Approved`, `Rejected`, `Flagged`); moderators can change it.
 - Threaded comments attach to ideas; authors can edit/delete their own; moderators can moderate.
 - Users can follow ideas and view their followed list.

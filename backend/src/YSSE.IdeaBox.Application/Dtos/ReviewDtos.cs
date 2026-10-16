@@ -11,6 +11,7 @@ public record ReviewDto
     public bool IsGuest { get; init; }
     public ReviewModerationStatus ModerationStatus { get; init; }
     public string DisplayName { get; init; } = "Anonymous";
+    public string? AvatarUrl { get; init; }
     public DateTime CreatedAt { get; init; }
     public bool CanEdit { get; init; }
 }

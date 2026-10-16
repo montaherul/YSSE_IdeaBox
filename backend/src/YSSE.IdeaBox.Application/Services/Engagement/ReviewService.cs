@@ -61,18 +61,22 @@ public sealed class ReviewService : IReviewService
         var q = _unitOfWork.Repository<IdeaReview>().Query().Where(r => r.IdeaId == ideaId && !r.IsDeleted && r.ModerationStatus == ReviewModerationStatus.Published);
 
         var total = await q.CountAsync(ct);
-        var items = await q
-            .OrderByDescending(r => r.CreatedAt)
-            .Skip((p - 1) * s)
-            .Take(s)
-            .Select(r => new ReviewDto
+        var pageQuery = q.OrderByDescending(r => r.CreatedAt).Skip((p - 1) * s).Take(s);
+
+        // Registered reviewers are shown with their name and photo; guests stay "Anonymous" (FR-D04).
+        var items = await (
+            from r in pageQuery
+            join reviewer in _unitOfWork.Repository<User>().Query() on r.ReviewerUserId equals reviewer.Id into reviewers
+            from reviewer in reviewers.DefaultIfEmpty()
+            select new ReviewDto
             {
                 Id = r.Id,
                 Body = r.Body,
                 Rating = r.Rating,
                 IsGuest = r.IsGuest,
                 ModerationStatus = r.ModerationStatus,
-                DisplayName = "Anonymous",
+                DisplayName = r.IsGuest || reviewer == null ? "Anonymous" : reviewer.DisplayName,
+                AvatarUrl = !r.IsGuest && reviewer != null && reviewer.MemberProfile != null ? reviewer.MemberProfile.ImageUrl : null,
                 CreatedAt = r.CreatedAt,
                 CanEdit = r.ReviewerUserId != null && r.ReviewerUserId == _current.UserId
             })
@@ -110,6 +114,7 @@ public sealed class ReviewService : IReviewService
 
     public async Task<Result<ReviewDto>> SubmitRegisteredAsync(int ideaId, ReviewCreateRequest request, CancellationToken ct = default)    {
         var userId = _current.RequireUserId();
+        var (displayName, avatarUrl) = await GetReviewerIdentityAsync(userId, ct);
         var idea = await RequirePublishableIdeaAsync(ideaId, ct);
         if (idea.CreatorUserId == userId)
         {
@@ -124,7 +129,7 @@ public sealed class ReviewService : IReviewService
             existing.Rating = request.Rating;
             existing.UpdatedAt = _clock.UtcNow;
             await _unitOfWork.SaveChangesAsync(ct);
-            return Result<ReviewDto>.Ok(ToDto(existing, _current.UserId));
+            return Result<ReviewDto>.Ok(ToDto(existing, userId, displayName, avatarUrl));
         }
 
         var review = new IdeaReview
@@ -143,7 +148,7 @@ public sealed class ReviewService : IReviewService
         await _notifications.NotifyAsync(idea.CreatorUserId, NotificationType.NewReview,
             "New review on your idea", $"Someone left a review on \"{idea.Title}\".", null, ct: ct);
 
-        return Result<ReviewDto>.Ok(ToDto(review, userId));
+        return Result<ReviewDto>.Ok(ToDto(review, userId, displayName, avatarUrl));
     }
 
     public async Task<Result<ReviewDto>> SubmitGuestAsync(int ideaId, ReviewCreateRequest request, GuestContext guest, CancellationToken ct = default)
@@ -232,7 +237,8 @@ public sealed class ReviewService : IReviewService
 
         await _audit.RecordAsync("ReviewEdited", nameof(IdeaReview), review.Id.ToString(),
             null, new { previous }, ct);
-        return Result<ReviewDto>.Ok(ToDto(review, userId));
+        var (displayName, avatarUrl) = await GetReviewerIdentityAsync(userId, ct);
+        return Result<ReviewDto>.Ok(ToDto(review, userId, displayName, avatarUrl));
     }
 
     public async Task<Result> DeleteOwnAsync(int reviewId, CancellationToken ct = default)
@@ -286,14 +292,29 @@ public sealed class ReviewService : IReviewService
         return idea;
     }
 
-    private static ReviewDto ToDto(IdeaReview review, int? viewerId) => new()
+    /// <summary>
+    /// Public identity of a registered reviewer: display name plus member photo.
+    /// Guests never pass through here — they are always rendered as "Anonymous" (FR-D04).
+    /// </summary>
+    private async Task<(string DisplayName, string? AvatarUrl)> GetReviewerIdentityAsync(int userId, CancellationToken ct)
+    {
+        var reviewer = await _unitOfWork.Repository<User>().Query()
+            .Where(u => u.Id == userId)
+            .Select(u => new { u.DisplayName, ImageUrl = u.MemberProfile != null ? u.MemberProfile.ImageUrl : null })
+            .FirstOrDefaultAsync(ct);
+
+        return (string.IsNullOrWhiteSpace(reviewer?.DisplayName) ? "Anonymous" : reviewer.DisplayName, reviewer?.ImageUrl);
+    }
+
+    private static ReviewDto ToDto(IdeaReview review, int? viewerId, string displayName = "Anonymous", string? avatarUrl = null) => new()
     {
         Id = review.Id,
         Body = review.Body,
         Rating = review.Rating,
         IsGuest = review.IsGuest,
         ModerationStatus = review.ModerationStatus,
-        DisplayName = "Anonymous",
+        DisplayName = displayName,
+        AvatarUrl = avatarUrl,
         CreatedAt = review.CreatedAt,
         CanEdit = !review.IsGuest && viewerId != null && review.ReviewerUserId == viewerId
     };

@@ -345,9 +345,9 @@ This is a core requirement and shall be implemented explicitly. A community revi
 | FR-D01 | Allow one anonymous review on one eligible idea without an account. | M |
 | FR-D02 | First guest review creates a server-side guest record and an opaque guest visitor ID. | M |
 | FR-D03 | Require authentication when a recognized guest attempts a review on a different idea. | M |
-| FR-D04 | Display the review publicly as "Anonymous". | M |
+| FR-D04 | Display guest reviews publicly as "Anonymous". | M |
 | FR-D05 | Review counts distinguish anonymous from registered-user reviews. | M |
-| FR-D06 | Never expose reviewer identity in pages, search results, APIs, metadata, or logs shown to the public. | M |
+| FR-D06 | Never expose guest reviewer identity in pages, search results, APIs, metadata, or logs shown to the public. | M |
 | FR-D07 | Apply rate limits, duplicate detection, and spam controls. | M |
 | FR-D08 | Guest reviews never count as official votes. | M |
 | FR-D09 | Clearly tell users that the guest limit is best-effort. | M |
@@ -362,7 +362,7 @@ This is a core requirement and shall be implemented explicitly. A community revi
 | FR-D12 | At most one active review per user per idea. | M |
 | FR-D13 | Editing never increases the review count. | M |
 | FR-D14 | Prevent duplicates in backend validation **and** a database unique constraint. | M |
-| FR-D15 | Registered reviews display anonymously by default; an opt-in public attribution option is a later policy change. | M |
+| FR-D15 | Registered reviews display the reviewer's name and profile photo publicly. | M |
 | FR-D16 | Reviewers can edit or remove their own reviews within configured limits. | M |
 | FR-D17 | Moderators can hide or remove rule-violating reviews with a recorded reason. | M |
 | FR-D18 | Review moderation status (pending, published, hidden, removed, spam) is tracked separately from content. | M |

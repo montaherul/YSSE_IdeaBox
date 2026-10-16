@@ -26,7 +26,7 @@ import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermission } from '@/hooks/usePermission'
 import { reviewSchema, toErrorMessage } from '@/lib/validation'
-import { downloadBlob } from '@/lib/media'
+import { downloadBlob, mediaUrl } from '@/lib/media'
 import { useIdeaBySlug, useRegisterIdeaView, useSimilarIdeas } from '@/features/ideas/hooks'
 import { ideasApi } from '@/features/ideas/api'
 import { useIdeaVotes, useCastVote, useRemoveVote } from '@/features/voting/hooks'
@@ -173,7 +173,7 @@ function ReviewSection({ ideaId }) {
               <li key={review.id} className="rounded-lg border p-4">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <UserAvatar name={review.displayName} className="h-7 w-7" />
+                    <UserAvatar name={review.displayName} src={mediaUrl(review.avatarUrl)} className="h-7 w-7" />
                     <span className="text-sm font-medium">{review.displayName ?? 'Anonymous'}</span>
                     {review.canEdit ? (
                       <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">You</span>

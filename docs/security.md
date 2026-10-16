@@ -110,6 +110,7 @@ Anti-abuse features: guest reviews are tracked via an HTTP-only guest cookie and
 - Profile visibility is controlled by `ProfileFieldVisibility`.
 - Anonymous idea attribution hides the creator publicly while still recording `CreatorUserId` internally.
 - Anonymous ideas are excluded from creator profiles, leaderboards, and search inference.
+- Review display: guest reviews are rendered as "Anonymous"; registered reviewers are shown with their display name and profile photo. Reviewer identity is never exposed for guest reviews.
 - Data retention/deletion expectations apply to accounts, private messages, reports, and audit records.
 
 ---

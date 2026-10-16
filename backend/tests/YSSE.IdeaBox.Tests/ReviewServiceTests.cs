@@ -120,6 +120,38 @@ public class ReviewServiceTests
     }
 
     [Fact]
+    public async Task GetForIdea_shows_registered_reviewer_name_and_photo_but_guests_stay_anonymous()
+    {
+        var (_, uow) = TestDb.Create();
+
+        var reviewer = new User { DisplayName = "Amina Rahman", Email = "amina@example.com" };
+        await uow.Repository<User>().AddAsync(reviewer);
+        await uow.SaveChangesAsync();
+        await uow.Repository<MemberProfile>().AddAsync(new MemberProfile
+        {
+            UserId = reviewer.Id,
+            DisplayName = "Amina Rahman",
+            ImageUrl = "/api/v1/media/avatar.webp"
+        });
+        await uow.SaveChangesAsync();
+
+        var idea = await SeedIdeaAsync(uow);
+        await SeedReviewAsync(uow, idea, reviewer.Id, false, 5, createdAt: Now.AddDays(-1));
+        await SeedReviewAsync(uow, idea, null, true, 4, createdAt: Now.AddDays(-2));
+
+        var svc = CreateService(uow, new FakeCurrentUser { UserId = reviewer.Id });
+        var page = await svc.GetForIdeaAsync(idea.Id, 1, 20);
+
+        var registered = page.Items.Single(x => !x.IsGuest);
+        Assert.Equal("Amina Rahman", registered.DisplayName);
+        Assert.Equal("/api/v1/media/avatar.webp", registered.AvatarUrl);
+
+        var guest = page.Items.Single(x => x.IsGuest);
+        Assert.Equal("Anonymous", guest.DisplayName);
+        Assert.Null(guest.AvatarUrl);
+    }
+
+    [Fact]
     public async Task GetMine_returns_only_the_callers_reviews()
     {
         var (_, uow) = TestDb.Create();

@@ -161,6 +161,8 @@ Decision body accepts target-status values `Published`, `Rejected`, `RevisionReq
 
 Guest reviews are tracked by an HTTP-only guest cookie and rate-limited. The cookie lifetime is `Guest:ReviewCookieDays` (default 365).
 
+Review display: guest reviews always return `displayName: "Anonymous"` with no `avatarUrl`. Registered reviews return the reviewer's display name and, when set, their member profile photo in `avatarUrl` (relative media path — resolve against the API origin).
+
 ### Votes & Voting Periods — `/api/v1`
 
 | Method | Path | Policy |
