@@ -453,6 +453,14 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
+        <div className="mt-8 flex justify-center">
+          <Button asChild variant="outline">
+            <Link to="/how-it-works">
+              See the Full Journey
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          </Button>
+        </div>
       </section>
 
       {/* Community call to action */}

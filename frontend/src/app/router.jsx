@@ -72,6 +72,7 @@ export const router = createBrowserRouter([
       { path: '/marketplace/:id', element: <ListingDetailPage /> },
       { path: '/creator/:userId', element: <CreatorProfilePage /> },
       { path: '/about', element: <AboutPage /> },
+      { path: '/how-it-works', element: <HowItWorksPage /> },
       { path: '/guidelines', element: <GuidelinesPage /> },
       { path: '/privacy', element: <PrivacyPage /> },
       { path: '/terms', element: <TermsPage /> },
@@ -212,6 +213,9 @@ function LeaderboardsPage() {
 }
 function AboutPage() {
   return wrapLazy(() => import('@/features/static/pages/AboutPage.jsx'))
+}
+function HowItWorksPage() {
+  return wrapLazy(() => import('@/features/static/pages/HowItWorksPage.jsx'))
 }
 function GuidelinesPage() {
   return wrapLazy(() => import('@/features/static/pages/GuidelinesPage.jsx'))

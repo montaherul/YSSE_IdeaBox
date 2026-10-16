@@ -108,9 +108,12 @@ export function PublicLayout() {
 
           <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
             <DiscoverMenu />
-            <Link to="/#how-it-works" className={NAV_LINK_CLASS}>
+            <NavLink
+              to="/how-it-works"
+              className={({ isActive }) => cn(NAV_LINK_CLASS, isActive && 'text-foreground')}
+            >
               How It Works
-            </Link>
+            </NavLink>
             <NavLink
               to="/about"
               className={({ isActive }) => cn(NAV_LINK_CLASS, isActive && 'text-foreground')}
@@ -183,7 +186,7 @@ export function PublicLayout() {
               </li>
               <li>
                 <Link
-                  to="/#how-it-works"
+                  to="/how-it-works"
                   onClick={() => setMenuOpen(false)}
                   className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 >
@@ -239,7 +242,7 @@ export function PublicLayout() {
             <Link to="/ideas" className="text-muted-foreground hover:text-foreground">
               Discover Ideas
             </Link>
-            <Link to="/#how-it-works" className="text-muted-foreground hover:text-foreground">
+            <Link to="/how-it-works" className="text-muted-foreground hover:text-foreground">
               How It Works
             </Link>
             <Link to="/about" className="text-muted-foreground hover:text-foreground">
